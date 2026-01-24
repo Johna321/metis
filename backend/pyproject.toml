@@ -4,4 +4,17 @@ version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "fastapi>=0.128.0",
+    "orjson>=3.11.5",
+    "pydantic-settings>=2.12.0",
+    "pymupdf>=1.26.7",
+    "python-multipart>=0.0.21",
+    "rapidfuzz>=3.14.3",
+    "rich>=14.2.0",
+    "typer>=0.21.1",
+    "uvicorn[standard]>=0.40.0",
+]
+
+[project.scripts]
+metis = "metis.adapters.cli:main"
