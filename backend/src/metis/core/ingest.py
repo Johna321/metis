@@ -1,5 +1,5 @@
 from __future__ import annotations
-import fitz  # PyMuPDF
+import pymupdf
 from typing import List, Tuple
 from .schema import Span
 from .store import doc_id_from_bytes, paths, write_json, write_spans_jsonl
@@ -14,7 +14,7 @@ def ingest_pdf_bytes(pdf_bytes: bytes) -> dict:
     p = paths(doc_id)
     p["pdf"].write_bytes(pdf_bytes)
 
-    d = fitz.open(stream=pdf_bytes, filetype="pdf")
+    d = pymupdf.open(stream=pdf_bytes, filetype="pdf")
     spans: List[Span] = []
     ro = 0
 
@@ -55,4 +55,3 @@ def ingest_pdf_bytes(pdf_bytes: bytes) -> dict:
     write_json(p["doc"], meta)
     write_spans_jsonl(p["spans"], spans)
     return meta
-
