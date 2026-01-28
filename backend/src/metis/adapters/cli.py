@@ -24,7 +24,9 @@ def debug_page(
         output: Path,
         start: int = typer.Option(None, "--start", "-s"),
         end: int = typer.Option(None, "--end", "-e"),
-        raw: bool = typer.Option(False, "--raw")
+        raw: bool = typer.Option(False, "--raw"),
+        show_blocks: bool = typer.Option(False, "--blocks"),
+        show_draws: bool = typer.Option(False, "--draws")
     ):
     p = paths(doc_id)
     doc = pymupdf.open(p["pdf"])
@@ -39,6 +41,7 @@ def debug_page(
                 for j, b in enumerate(doc[i].get_text("blocks")) if b[6] == 0]
             for i in range(start, end + 1)
         }
+
     else:
         # use store doc_id
         all_spans = read_spans_jsonl(p["spans"])
@@ -47,14 +50,24 @@ def debug_page(
             if start <= s.page <= end:
                 blocks_by_page.setdefault(s.page, []).append(s)
 
+    draws_by_page = {
+        i: doc[i].cluster_drawings()
+        for i in range(start, end + 1)
+    } if show_draws else {}
+
     for page_num in range(start, end + 1):
         page = doc[page_num]
-        for b in blocks_by_page.get(page_num, []):
-            bbox = b.bbox_pdf if hasattr(b, "bbox_pdf") else b["bbox_pdf"]
-            span_id = b.span_id if hasattr(b, "span_id") else b["span_id"]
-            rect = pymupdf.Rect(bbox)
-            page.draw_rect(rect, color=(1, 0, 0), width=0.5)
-            page.insert_text((rect.x0, rect.y0 - 2), span_id, fontsize=6, color=(1, 0, 0))
+        if show_blocks:
+            for b in blocks_by_page.get(page_num, []):
+                bbox = b.bbox_pdf if hasattr(b, "bbox_pdf") else b["bbox_pdf"]
+                span_id = b.span_id if hasattr(b, "span_id") else b["span_id"]
+                rect = pymupdf.Rect(bbox)
+                page.draw_rect(rect, color=(1, 0, 0), width=0.5)
+                page.insert_text((rect.x0, rect.y0 - 2), span_id, fontsize=6, color=(1, 0, 0))
+        if show_draws:
+            for i, rect in enumerate(draws_by_page.get(page_num, [])):
+                page.draw_rect(rect, color=(0, 1, 0), width=0.5)
+                page.insert_text((rect.x1 - 30, rect.y0 - 2), f"draw_{i}", fontsize=6, color=(0, 1, 0))
 
     out_doc = pymupdf.open()
     out_doc.insert_pdf(doc, from_page=start, to_page=end)
