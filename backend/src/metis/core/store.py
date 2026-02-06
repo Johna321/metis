@@ -14,6 +14,8 @@ def paths(doc_id: str) -> dict:
         "pdf": DATA_DIR / f"{safe}.pdf",
         "spans": DATA_DIR / f"{safe}.spans.jsonl",
         "doc": DATA_DIR / f"{safe}.doc.json",
+        "page_md": DATA_DIR / f"{safe}.page_md.json",
+        "assets": DATA_DIR / f"{safe}_assets",
     }
 
 def write_json(path: Path, obj) -> None:
@@ -25,9 +27,20 @@ def write_spans_jsonl(path: Path, spans: Iterable[Span]) -> None:
             f.write(orjson.dumps(s.__dict__) + b"\n")
 
 def read_spans_jsonl(path: Path) -> List[Span]:
+    import dataclasses
+    valid_fields = {f.name for f in dataclasses.fields(Span)}
     spans: List[Span] = []
     for line in path.read_bytes().splitlines():
         d = orjson.loads(line)
-        spans.append(Span(**d))
+        # tolerate missing optional fields and ignore unknown keys
+        filtered = {k: v for k, v in d.items() if k in valid_fields}
+        # convert pos list back to tuple if present
+        if "pos" in filtered and filtered["pos"] is not None:
+            filtered["pos"] = tuple(filtered["pos"])
+        # convert bbox tuples (orjson deserializes as lists)
+        for bk in ("bbox_pdf", "bbox_norm"):
+            if bk in filtered and filtered[bk] is not None:
+                filtered[bk] = tuple(filtered[bk])
+        spans.append(Span(**filtered))
     return spans
 
