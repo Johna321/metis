@@ -8,6 +8,7 @@ from pathlib import Path
 from ..core.ingest import ingest_pdf_bytes, ingest_pdf_bytes_layout
 from ..core.retrieve import retrieve
 from ..core.store import paths, read_spans_jsonl
+from ..core.vectorize import vectorize_spans, retrieve_semantic
 
 app = typer.Typer(no_args_is_help=True)
 
@@ -167,6 +168,29 @@ def debug_page(
     out_doc.insert_pdf(doc, from_page=start, to_page=end)
     out_doc.save(output)
     print(f"[green]Saved debug PDF → {output}[/green]")
+
+
+@app.command()
+def vectorize(doc_id: str):
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
+    meta = vectorize_spans(doc_id)
+    print(meta)
+
+
+@app.command("retrieve-semantic")
+def retrieve_semantic_cmd(
+    doc_id: str,
+    query: str,
+    page: int = typer.Option(None, "--page", "-p", help="Filter to specific page"),
+    top_k: int = typer.Option(None, "--top-k", "-k", help="Max results"),
+):
+    kwargs = {}
+    if page is not None:
+        kwargs["page"] = page
+    if top_k is not None:
+        kwargs["top_k"] = top_k
+    ev = retrieve_semantic(doc_id=doc_id, query=query, **kwargs)
+    print([e.__dict__ for e in ev])
 
 
 def main():
