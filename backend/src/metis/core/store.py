@@ -16,6 +16,8 @@ def paths(doc_id: str) -> dict:
         "doc": DATA_DIR / f"{safe}.doc.json",
         "page_md": DATA_DIR / f"{safe}.page_md.json",
         "assets": DATA_DIR / f"{safe}_assets",
+        "embeddings": DATA_DIR / f"{safe}.embeddings.npy",
+        "embeddings_meta": DATA_DIR / f"{safe}.embeddings_meta.json",
     }
 
 def write_json(path: Path, obj) -> None:
