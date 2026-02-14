@@ -1,7 +1,7 @@
 import numpy as np
 import orjson
 from metis.core.schema import Span
-from metis.core.vectorize import _filter_embeddable, vectorize_spans
+from metis.core.vectorize import _filter_embeddable, vectorize_spans, retrieve_semantic
 from metis.core.store import paths, write_spans_jsonl, write_json
 
 def _make_span(text="Hello world, this is a test span.", **kwargs):
@@ -77,3 +77,36 @@ def test_vectorize_filters_non_embeddable(tmp_path, monkeypatch):
     assert emb.shape[0] == 1
     meta_data = orjson.loads(p["embeddings_meta"].read_bytes())
     assert meta_data["span_ids"] == ["good"]
+
+
+def test_retrieve_semantic_returns_evidence(tmp_path, monkeypatch):
+    spans = [
+        _make_span(span_id="s0", text="The transformer architecture uses self-attention mechanisms."),
+        _make_span(span_id="s1", text="Stochastic gradient descent optimizes the loss function."),
+        _make_span(span_id="s2", text="Attention allows the model to focus on relevant tokens."),
+    ]
+    doc_id, p = _setup_doc(tmp_path, monkeypatch, spans)
+    vectorize_spans(doc_id)
+    results = retrieve_semantic(doc_id, "How does attention work?")
+    assert len(results) > 0
+    assert all(hasattr(r, "score") for r in results)
+    # attention-related spans should rank higher
+    span_ids = [r.span_id for r in results]
+    assert span_ids[0] in ("s0", "s2")
+
+def test_retrieve_semantic_page_filter(tmp_path, monkeypatch):
+    spans = [
+        _make_span(span_id="p0", page=0, text="The transformer architecture uses self-attention mechanisms."),
+        _make_span(span_id="p1", page=1, text="Attention allows the model to focus on relevant tokens."),
+    ]
+    doc_id, p = _setup_doc(tmp_path, monkeypatch, spans)
+    vectorize_spans(doc_id)
+    results = retrieve_semantic(doc_id, "attention", page=1)
+    assert all(r.page == 1 for r in results)
+
+def test_retrieve_semantic_respects_top_k(tmp_path, monkeypatch):
+    spans = [_make_span(span_id=f"s{i}", text=f"This is span number {i} about neural networks and deep learning.") for i in range(10)]
+    doc_id, p = _setup_doc(tmp_path, monkeypatch, spans)
+    vectorize_spans(doc_id)
+    results = retrieve_semantic(doc_id, "neural networks", top_k=3)
+    assert len(results) <= 3
