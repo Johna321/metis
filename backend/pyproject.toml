@@ -27,3 +27,4 @@ packages = ["src/metis"]
 
 [project.scripts]
 metis = "metis.adapters.cli:main"
+metis-web = "metis.adapters.web:main"
