@@ -14,6 +14,10 @@ class Span:
     reading_order: int
     is_header: bool = False
     is_footer: bool = False
+    # --- layout-engine fields ---
+    kind: Optional[str] = None          # e.g. "text", "table", "picture", ...
+    pos: Optional[Tuple[int, int]] = None  # char offsets into per-page markdown
+    source: str = "pymupdf_blocks"      # "pymupdf_blocks" | "pymupdf4llm_page_boxes" | "pymupdf4llm_layout"
 
 @dataclass(frozen=True)
 class Evidence:
