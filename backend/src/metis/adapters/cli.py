@@ -9,6 +9,8 @@ from ..core.ingest import ingest_pdf_bytes, ingest_pdf_bytes_layout
 from ..core.retrieve import retrieve
 from ..core.store import paths, read_spans_jsonl
 from ..core.vectorize import vectorize_spans, retrieve_semantic
+from ..benchmark.runner import run_retrieval_benchmark, AVAILABLE_DATASETS
+from ..benchmark.ingestion import ingestion_metrics
 
 app = typer.Typer(no_args_is_help=True)
 
@@ -191,6 +193,60 @@ def retrieve_semantic_cmd(
         kwargs["top_k"] = top_k
     ev = retrieve_semantic(doc_id=doc_id, query=query, **kwargs)
     print([e.__dict__ for e in ev])
+
+
+bench_app = typer.Typer(no_args_is_help=True, help="Run benchmarks")
+app.add_typer(bench_app, name="benchmark")
+
+
+@bench_app.command()
+def retrieval(
+    dataset: str = typer.Option("scifact", "--dataset", "-d", help=f"Dataset name: {', '.join(AVAILABLE_DATASETS)} or 'all'"),
+    model: str = typer.Option(None, "--model", "-m", help="Embedding model name (default: from settings)"),
+):
+    """Run retrieval benchmark on a BEIR dataset."""
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
+    datasets = list(AVAILABLE_DATASETS) if dataset == "all" else [dataset]
+    for ds in datasets:
+        print(f"[bold]Running retrieval benchmark: {ds}[/bold]")
+        result = run_retrieval_benchmark(dataset_name=ds, model_name=model)
+        print(f"  nDCG@10:     {result.ndcg.get('NDCG@10', 0):.4f}")
+        print(f"  MAP@10:      {result.map_score.get('MAP@10', 0):.4f}")
+        print(f"  Recall@100:  {result.recall.get('Recall@100', 0):.4f}")
+        print(f"  Time:        {result.retrieval_time_s:.1f}s")
+        print()
+
+
+@bench_app.command()
+def ingestion(
+    annotations_dir: Path = typer.Option("data/benchmark", help="Dir with gold annotation JSON files"),
+):
+    """Run ingestion quality benchmark against gold annotations."""
+    import orjson
+    annotations_dir = Path(annotations_dir)
+    if not annotations_dir.exists():
+        print(f"[red]Annotations dir not found: {annotations_dir}[/red]")
+        print("Create gold annotations as JSON files in this directory.")
+        raise typer.Exit(1)
+    for ann_file in sorted(annotations_dir.glob("*.gold.json")):
+        gold_data = orjson.loads(ann_file.read_bytes())
+        doc_id = gold_data["doc_id"]
+        print(f"[bold]Evaluating: {ann_file.name}[/bold]")
+        try:
+            spans = read_spans_jsonl(paths(doc_id)["spans"])
+        except FileNotFoundError:
+            print(f"  [red]Spans not found for {doc_id} — ingest the PDF first[/red]")
+            continue
+        for page_num, gold_spans in gold_data.get("pages", {}).items():
+            predicted = [
+                {"bbox_norm": s.bbox_norm, "kind": s.kind, "reading_order": s.reading_order}
+                for s in spans if s.page == int(page_num)
+            ]
+            metrics = ingestion_metrics(gold_spans, predicted)
+            print(f"  Page {page_num}: IoU={metrics['mean_iou']:.3f}  "
+                  f"Layout={metrics['layout_accuracy']:.3f}  "
+                  f"Coverage={metrics['coverage']:.3f}  "
+                  f"Spurious={metrics['spurious_rate']:.3f}")
 
 
 def main():
