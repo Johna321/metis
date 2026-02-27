@@ -11,6 +11,45 @@
 .ev-meta { display: flex; gap: 10px; opacity: 0.7; font-size: 12px; margin-bottom: 6px; }
 .ev-text { font-size: 13px; white-space: pre-wrap; }
 
+/* BBox selection */
+.page-wrap { position: relative; }
+.no-select { user-select: none; }
+
+.bbox-overlay {
+  position: absolute;
+  inset: 0;
+  cursor: crosshair;
+  z-index: 10;
+}
+
+.bbox-rubber-band {
+  position: absolute;
+  border: 2px solid #2563eb;
+  background: rgba(37, 99, 235, 0.12);
+  pointer-events: none;
+}
+
+.bbox-completed {
+  position: absolute;
+  border: 2px solid #16a34a;
+  background: rgba(22, 163, 74, 0.10);
+  pointer-events: none;
+}
+
+.bbox-btn.active {
+  background: #2563eb;
+  color: #fff;
+  border-color: #1d4ed8;
+}
+
+@media (prefers-color-scheme: dark) {
+  .bbox-btn.active {
+    background: #2563eb;
+    color: #fff;
+    border-color: #93c5fd;
+  }
+}
+
 
 .logo.vite:hover {
   filter: drop-shadow(0 0 2em #747bff);
