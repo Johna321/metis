@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from enum import Enum
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 
 import orjson
 import uvicorn
@@ -14,6 +14,7 @@ from pydantic import BaseModel
 from ..core.ingest import ingest_pdf_bytes, ingest_pdf_bytes_layout
 from ..core.retrieve import retrieve
 from ..core.store import paths
+from ..core.vectorize import retrieve_semantic, vectorize_spans
 
 app = FastAPI(title="Metis")
 
@@ -48,6 +49,25 @@ class RetrieveRequest(BaseModel):
     doc_id: str
     page: int
     selected_text: str
+
+
+class VectorizeRequest(BaseModel):
+    doc_id: str
+
+
+class VectorizeResponse(BaseModel):
+    doc_id: str
+    n_embedded: int
+    n_skipped: Optional[int] = None
+    model: str
+    dim: Optional[int] = None
+
+
+class SemanticRetrieveRequest(BaseModel):
+    doc_id: str
+    query: str
+    page: Optional[int] = None
+    top_k: Optional[int] = None
 
 
 class EvidenceItem(BaseModel):
@@ -90,6 +110,35 @@ async def retrieve_endpoint(req: RetrieveRequest):
         raise HTTPException(status_code=404, detail=f"Document not found: {req.doc_id}")
     evidence = retrieve(doc_id=req.doc_id, page=req.page, selected_text=req.selected_text)
     return [e.__dict__ for e in evidence]
+
+
+@app.post("/vectorize", response_model=VectorizeResponse)
+def vectorize_endpoint(req: VectorizeRequest):
+    p = paths(req.doc_id)
+    if not p["spans"].exists():
+        raise HTTPException(status_code=404, detail=f"Document not found: {req.doc_id}")
+    result = vectorize_spans(doc_id=req.doc_id)
+    return result
+
+
+@app.post("/retrieve-semantic", response_model=List[EvidenceItem])
+def retrieve_semantic_endpoint(req: SemanticRetrieveRequest):
+    kwargs = {}
+    if req.page is not None:
+        kwargs["page"] = req.page
+    if req.top_k is not None:
+        kwargs["top_k"] = req.top_k
+    try:
+        evidence = retrieve_semantic(doc_id=req.doc_id, query=req.query, **kwargs)
+    except FileNotFoundError:
+        raise HTTPException(
+            status_code=404,
+            detail="Embeddings not found for this document. Run 'metis vectorize <doc_id>' first.",
+        )
+    return [
+        EvidenceItem(span_id=e.span_id, page=e.page, bbox_norm=e.bbox_norm, text=e.text, score=e.score)
+        for e in evidence
+    ]
 
 
 @app.get("/documents/{doc_id}")
