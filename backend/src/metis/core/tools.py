@@ -81,11 +81,11 @@ def make_web_search_tool(api_key: str) -> tuple[ToolDef, Callable[..., str]]:
         return json.dumps(
             [
                 {
-                    "title": r.title,
-                    "url": r.url,
-                    "snippet": r.content,
+                    "title": r['title'],
+                    "url": r['url'],
+                    "snippet": r['content'],
                 }
-                for r in response.results
+                for r in response['results']
             ]
         )
 
