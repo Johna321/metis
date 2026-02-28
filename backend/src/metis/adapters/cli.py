@@ -1,3 +1,4 @@
+import json
 import logging
 from enum import Enum
 
@@ -9,6 +10,14 @@ from ..core.ingest import ingest_pdf_bytes, ingest_pdf_bytes_layout
 from ..core.retrieve import retrieve
 from ..core.store import paths, read_spans_jsonl
 from ..core.vectorize import vectorize_spans, retrieve_semantic
+from ..core.agent import run_agent
+from ..core.llm import AnthropicModel, OpenAIModel, StreamEvent
+from ..core.tools import ToolRegistry, make_rag_retrieve_tool, make_web_search_tool
+from ..core.prompts import SYSTEM_PROMPT
+from ..settings import (
+    LLM_PROVIDER, LLM_MODEL, LLM_API_KEY, TAVILY_API_KEY,
+    AGENT_MAX_ITER, AGENT_TEMPERATURE,
+)
 from ..benchmark.runner import run_retrieval_benchmark, AVAILABLE_DATASETS
 from ..benchmark.ingestion import ingestion_metrics
 
@@ -194,6 +203,140 @@ def retrieve_semantic_cmd(
     ev = retrieve_semantic(doc_id=doc_id, query=query, **kwargs)
     print([e.__dict__ for e in ev])
 
+@app.command()
+def chat(
+    doc_id: str,
+    provider: str = typer.Option(None, "--provider", "-p", help="LLM provider: anthropic or openai"),
+    model: str = typer.Option(None, "--model", "-m", help="Model ID"),
+    verbose: bool = typer.Option(False, "--verbose", "-v", help="Show tool arguments and retrieved chunks"),
+):
+    """Interactive Q&A chat with a PDF file"""
+    from rich.console import Console
+    import os
+
+    console = Console()
+
+    # Resolve provider and model
+    prov = provider or LLM_PROVIDER
+    mod = model or LLM_MODEL
+    api_key = LLM_API_KEY
+
+    # Fall back to standard env vars for API key
+    if not api_key:
+        if prov == "anthropic":
+            api_key = os.getenv("ANTHROPIC_API_KEY", "")
+        elif prov == "openai":
+            api_key = os.getenv("OPENAI_API_KEY", "")
+
+    if not api_key:
+        console.print("[red]No API key found. Set METIS_LLM_API_KEY or ANTHROPIC_API_KEY / OPENAI_API_KEY.[/red]")
+        raise typer.Exit(1)
+
+    # Validate doc exists and has embeddings
+    p = paths(doc_id)
+    if not p["spans"].exists():
+        console.print(f"[red]Document not found: {doc_id}[/red]")
+        console.print("Run: metis ingest <pdf> first.")
+        raise typer.Exit(1)
+
+    if not p["embeddings"].exists():
+        console.print(f"[yellow]No embeddings found for this document.[/yellow]")
+        console.print(f"Run: metis vectorize {doc_id}")
+        raise typer.Exit(1)
+
+    # Load doc metadata
+    if p["doc"].exists():
+        import orjson
+        doc_meta = orjson.loads(p["doc"].read_bytes())
+        console.print(f"[bold]Paper:[/bold] {doc_meta.get('title', doc_id)}")
+        console.print(f"[dim]Pages: {doc_meta.get('page_count', '?')}  |  Provider: {prov}  |  Model: {mod}[/dim]")
+    else:
+        console.print(f"[bold]Document:[/bold] {doc_id}")
+
+    console.print("[dim]Type 'exit' or press Ctrl+C to quit.[/dim]\n")
+
+    # Build model
+    if prov == "anthropic":
+        llm = AnthropicModel(api_key=api_key, model=mod, temperature=AGENT_TEMPERATURE)
+    elif prov == "openai":
+        llm = OpenAIModel(api_key=api_key, model=mod, temperature=AGENT_TEMPERATURE)
+    else:
+        console.print(f"[red]Unknown provider: {prov}. Use 'anthropic' or 'openai'.[/red]")
+        raise typer.Exit(1)
+
+    # Build tools
+    registry = ToolRegistry()
+    rag_def, rag_fn = make_rag_retrieve_tool(doc_id)
+    registry.register(rag_def.name, rag_def.description, rag_def.parameters, rag_fn)
+
+    tavily_key = TAVILY_API_KEY or os.getenv("TAVILY_API_KEY", "")
+    if tavily_key:
+        ws_def, ws_fn = make_web_search_tool(tavily_key)
+        registry.register(ws_def.name, ws_def.description, ws_def.parameters, ws_fn)
+    else:
+        console.print("[yellow]No Tavily API key: web search disabled.[/yellow]")
+
+    # Stream callback for terminal output
+    def on_stream(event: StreamEvent) -> None:
+        if event.kind == "text_delta" and event.text:
+            console.print(event.text, end="", highlight=False)
+        elif event.kind == "tool_call_start" and event.text:
+            console.print(f"\n[dim italic]  ↳ Calling {event.text}...[/dim italic]", end="")
+        elif event.kind == "tool_call_done":
+            console.print(" [dim]done[/dim]")
+            if verbose and event.tool_call:
+                console.print(f"    [dim cyan]args: {json.dumps(event.tool_call.arguments)}[/dim cyan]")
+
+    # Debug callback for tool results
+    def on_tool_result(tool_name: str, arguments: dict, result_str: str) -> None:
+        if not verbose:
+            return
+        parsed = json.loads(result_str)
+        if tool_name == "rag_retrieve" and isinstance(parsed, list):
+            for i, chunk in enumerate(parsed):
+                score = chunk.get("score", 0)
+                page = chunk.get("page", "?")
+                text = chunk.get("text", "")
+                # Truncate long text for display
+                display_text = text[:120] + "..." if len(text) > 120 else text
+                console.print(f"    [dim yellow]#{i+1} (p{page}, score={score:.3f}): {display_text}[/dim yellow]")
+        elif tool_name == "web_search" and isinstance(parsed, list):
+            for i, r in enumerate(parsed):
+                title = r.get("title", "")
+                url = r.get("url", "")
+                console.print(f"    [dim yellow]#{i+1}: {title} — {url}[/dim yellow]")
+        else:
+            # Generic: show truncated JSON
+            display = result_str[:200] + "..." if len(result_str) > 200 else result_str
+            console.print(f"    [dim yellow]{display}[/dim yellow]")
+
+    # Interactive loop
+    try:
+        while True:
+            try:
+                user_input = console.input("[bold green]You > [/bold green]")
+            except EOFError:
+                break
+
+            if user_input.strip().lower() in ("exit", "quit"):
+                break
+            if not user_input.strip():
+                continue
+
+            result = run_agent(
+                model=llm,
+                user_query=user_input,
+                tools=registry,
+                system_prompt=SYSTEM_PROMPT,
+                max_iterations=AGENT_MAX_ITER,
+                on_stream=on_stream,
+                on_tool_result=on_tool_result,
+            )
+            console.print()  # newline after streamed response
+            console.print()  # blank line before next prompt
+
+    except KeyboardInterrupt:
+        console.print("\n[dim]Goodbye.[/dim]")
 
 bench_app = typer.Typer(no_args_is_help=True, help="Run benchmarks")
 app.add_typer(bench_app, name="benchmark")

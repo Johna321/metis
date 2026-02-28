@@ -27,3 +27,23 @@ class Evidence:
     text: str
     score: float
 
+# --- Agent message types ---
+
+@dataclass(frozen=True)
+class ToolCall:
+    id: str
+    name: str
+    arguments: dict
+
+@dataclass(frozen=True)
+class ToolResult:
+    tool_call_id: str
+    content: str
+
+@dataclass(frozen=True)
+class Message:
+    role: str  # "user" | "assistant" | "tool"
+    content: Optional[str] = None
+    tool_calls: Optional[List[ToolCall]] = None
+    tool_results: Optional[List[ToolResult]] = None
+
