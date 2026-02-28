@@ -23,9 +23,15 @@ def _filter_embeddable(spans: List[Span]) -> List[Span]:
     return out
 
 
+_model_cache: dict[str, object] = {}
+
 def _load_model(model_name: str):
-    from sentence_transformers import SentenceTransformer
-    return SentenceTransformer(model_name)
+    if model_name not in _model_cache:
+        import logging
+        logging.getLogger("sentence_transformers").setLevel(logging.WARNING)
+        from sentence_transformers import SentenceTransformer
+        _model_cache[model_name] = SentenceTransformer(model_name)
+    return _model_cache[model_name]
 
 
 def vectorize_spans(doc_id: str, model_name: str | None = None) -> dict:

@@ -1,3 +1,4 @@
+import json
 import logging
 from enum import Enum
 
@@ -207,6 +208,7 @@ def chat(
     doc_id: str,
     provider: str = typer.Option(None, "--provider", "-p", help="LLM provider: anthropic or openai"),
     model: str = typer.Option(None, "--model", "-m", help="Model ID"),
+    verbose: bool = typer.Option(False, "--verbose", "-v", help="Show tool arguments and retrieved chunks"),
 ):
     """Interactive Q&A chat with a PDF file"""
     from rich.console import Console
@@ -227,7 +229,7 @@ def chat(
             api_key = os.getenv("OPENAI_API_KEY", "")
 
     if not api_key:
-        console.print("[red]No API key found. Set PAPERASSIST_LLM_API_KEY or ANTHROPIC_API_KEY / OPENAI_API_KEY.[/red]")
+        console.print("[red]No API key found. Set METIS_LLM_API_KEY or ANTHROPIC_API_KEY / OPENAI_API_KEY.[/red]")
         raise typer.Exit(1)
 
     # Validate doc exists and has embeddings
@@ -282,6 +284,31 @@ def chat(
             console.print(f"\n[dim italic]  ↳ Calling {event.text}...[/dim italic]", end="")
         elif event.kind == "tool_call_done":
             console.print(" [dim]done[/dim]")
+            if verbose and event.tool_call:
+                console.print(f"    [dim cyan]args: {json.dumps(event.tool_call.arguments)}[/dim cyan]")
+
+    # Debug callback for tool results
+    def on_tool_result(tool_name: str, arguments: dict, result_str: str) -> None:
+        if not verbose:
+            return
+        parsed = json.loads(result_str)
+        if tool_name == "rag_retrieve" and isinstance(parsed, list):
+            for i, chunk in enumerate(parsed):
+                score = chunk.get("score", 0)
+                page = chunk.get("page", "?")
+                text = chunk.get("text", "")
+                # Truncate long text for display
+                display_text = text[:120] + "..." if len(text) > 120 else text
+                console.print(f"    [dim yellow]#{i+1} (p{page}, score={score:.3f}): {display_text}[/dim yellow]")
+        elif tool_name == "web_search" and isinstance(parsed, list):
+            for i, r in enumerate(parsed):
+                title = r.get("title", "")
+                url = r.get("url", "")
+                console.print(f"    [dim yellow]#{i+1}: {title} — {url}[/dim yellow]")
+        else:
+            # Generic: show truncated JSON
+            display = result_str[:200] + "..." if len(result_str) > 200 else result_str
+            console.print(f"    [dim yellow]{display}[/dim yellow]")
 
     # Interactive loop
     try:
@@ -303,6 +330,7 @@ def chat(
                 system_prompt=SYSTEM_PROMPT,
                 max_iterations=AGENT_MAX_ITER,
                 on_stream=on_stream,
+                on_tool_result=on_tool_result,
             )
             console.print()  # newline after streamed response
             console.print()  # blank line before next prompt
