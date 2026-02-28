@@ -5,9 +5,11 @@ description = "Add your description here"
 readme = "../README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "anthropic>=0.40",
     "beir>=2.0",
     "fastapi>=0.128.0",
     "numpy>=2.0",
+    "openai>=1.50",
     "orjson>=3.11.5",
     "pydantic-settings>=2.12.0",
     "pymupdf==1.26.6",
@@ -17,6 +19,7 @@ dependencies = [
     "rapidfuzz>=3.14.3",
     "rich>=14.2.0",
     "sentence-transformers>=3.0",
+    "tavily-python>=0.5",
     "typer>=0.21.1",
     "uvicorn[standard]>=0.40.0",
 ]
