@@ -154,3 +154,123 @@ class AnthropicModel:
                 tool_calls=tool_calls if tool_calls else None,
             )
             yield StreamEvent(kind="message_done", message=final_msg)
+
+
+class OpenAIModel:
+    def __init__(self, api_key: str, model: str, temperature: float = 0.0):
+        import openai
+        self._client = openai.OpenAI(api_key=api_key)
+        self._model = model
+        self._temperature = temperature
+
+    def _to_openai_messages(self, messages: list[Message], system: str) -> list[dict]:
+        out = [{"role": "system", "content": system}]
+        for m in messages:
+            if m.role == "user":
+                out.append({"role": "user", "content": m.content})
+            elif m.role == "assistant":
+                msg = {"role": "assistant"}
+                if m.content:
+                    msg["content"] = m.content
+                if m.tool_calls:
+                    msg["tool_calls"] = [
+                        {
+                            "id": tc.id,
+                            "type": "function",
+                            "function": {
+                                "name": tc.name,
+                                "arguments": json.dumps(tc.arguments),
+                            },
+                        }
+                        for tc in m.tool_calls
+                    ]
+                out.append(msg)
+            elif m.role == "tool":
+                for tr in (m.tool_results or []):
+                    out.append({
+                        "role": "tool",
+                        "tool_call_id": tr.tool_call_id,
+                        "content": tr.content,
+                    })
+        return out
+
+    def _to_openai_tools(self, tools: list[ToolDef]) -> list[dict]:
+        return [
+            {
+                "type": "function",
+                "function": {
+                    "name": t.name,
+                    "description": t.description,
+                    "parameters": t.parameters,
+                },
+            }
+            for t in tools
+        ]
+
+    def stream(
+        self,
+        messages: list[Message],
+        tools: list[ToolDef],
+        system: str,
+    ) -> Iterator[StreamEvent]:
+        api_messages = self._to_openai_messages(messages, system)
+        api_tools = self._to_openai_tools(tools)
+
+        kwargs = dict(
+            model=self._model,
+            messages=api_messages,
+            temperature=self._temperature,
+            stream=True,
+        )
+        if api_tools:
+            kwargs["tools"] = api_tools
+
+        response = self._client.chat.completions.create(**kwargs)
+
+        text_parts = []
+        tool_calls_by_index: dict[int, dict] = {}
+
+        for chunk in response:
+            delta = chunk.choices[0].delta if chunk.choices else None
+            if delta is None:
+                continue
+
+            if delta.content:
+                text_parts.append(delta.content)
+                yield StreamEvent(kind="text_delta", text=delta.content)
+
+            if delta.tool_calls:
+                for tc_delta in delta.tool_calls:
+                    idx = tc_delta.index
+                    if idx not in tool_calls_by_index:
+                        tool_calls_by_index[idx] = {
+                            "id": tc_delta.id or "",
+                            "name": "",
+                            "arguments": "",
+                        }
+                        yield StreamEvent(kind="tool_call_start", text=tc_delta.function.name if tc_delta.function and tc_delta.function.name else "")
+                    entry = tool_calls_by_index[idx]
+                    if tc_delta.id:
+                        entry["id"] = tc_delta.id
+                    if tc_delta.function:
+                        if tc_delta.function.name:
+                            entry["name"] = tc_delta.function.name
+                        if tc_delta.function.arguments:
+                            entry["arguments"] += tc_delta.function.arguments
+                            yield StreamEvent(kind="tool_call_delta", text=tc_delta.function.arguments)
+
+        # Assemble final message
+        assembled_tool_calls = []
+        for idx in sorted(tool_calls_by_index):
+            entry = tool_calls_by_index[idx]
+            args = json.loads(entry["arguments"]) if entry["arguments"] else {}
+            tc = ToolCall(id=entry["id"], name=entry["name"], arguments=args)
+            assembled_tool_calls.append(tc)
+            yield StreamEvent(kind="tool_call_done", tool_call=tc)
+
+        final_msg = Message(
+            role="assistant",
+            content="".join(text_parts) if text_parts else None,
+            tool_calls=assembled_tool_calls if assembled_tool_calls else None,
+        )
+        yield StreamEvent(kind="message_done", message=final_msg)
