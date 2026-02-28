@@ -13,6 +13,7 @@ def run_agent(
     system_prompt: str,
     max_iterations: int = 10,
     on_stream: Callable[[StreamEvent], None] | None = None,
+    on_tool_result: Callable[[str, dict, str], None] | None = None,
 ) -> Message:
     messages: list[Message] = [Message(role="user", content=user_query)]
 
@@ -38,6 +39,8 @@ def run_agent(
         tool_results = []
         for tc in final_message.tool_calls:
             result_str = tools.call(tc.name, tc.arguments)
+            if on_tool_result is not None:
+                on_tool_result(tc.name, tc.arguments, result_str)
             tool_results.append(ToolResult(tool_call_id=tc.id, content=result_str))
 
         messages.append(Message(role="tool", tool_results=tool_results))
