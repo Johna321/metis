@@ -1,6 +1,6 @@
 import json
-from unittest.mock import patch
-from metis.core.tools import ToolRegistry, make_rag_retrieve_tool
+from unittest.mock import patch, MagicMock
+from metis.core.tools import ToolRegistry, make_rag_retrieve_tool, make_web_search_tool
 from metis.core.schema import Evidence
 
 
@@ -49,3 +49,18 @@ def test_rag_retrieve_tool_formats_evidence():
         assert parsed[0]["page"] == 0
         assert parsed[0]["score"] == 0.95
         assert parsed[0]["bbox_norm"] == [0.1, 0.2, 0.3, 0.4]
+
+def test_web_search_tool_formats_results():
+    mock_response = MagicMock()
+    mock_response.results = [
+        MagicMock(title="Result 1", url="https://example.com", content="Snippet 1"),
+    ]
+    with patch("metis.core.tools.TavilyClient") as MockTavily:
+        MockTavily.return_value.search.return_value = mock_response
+        _, fn = make_web_search_tool(api_key="test-key")
+        result = fn(query="test query", max_results=3)
+        parsed = json.loads(result)
+        assert len(parsed) == 1
+        assert parsed[0]["title"] == "Result 1"
+        assert parsed[0]["url"] == "https://example.com"
+        assert parsed[0]["snippet"] == "Snippet 1"

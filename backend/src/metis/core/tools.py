@@ -5,6 +5,7 @@ from typing import Any, Callable
 
 from .llm import ToolDef
 from .vectorize import retrieve_semantic
+from tavily import TavilyClient
 
 
 class ToolRegistry:
@@ -71,3 +72,43 @@ def make_rag_retrieve_tool(doc_id: str) -> tuple[ToolDef, Callable[..., str]]:
         },
     )
     return tool_def, rag_retrieve
+
+def make_web_search_tool(api_key: str) -> tuple[ToolDef, Callable[..., str]]:
+    client = TavilyClient(api_key=api_key)
+
+    def web_search(query: str, max_results: int = 5) -> str:
+        response = client.search(query=query, max_results=max_results)
+        return json.dumps(
+            [
+                {
+                    "title": r.title,
+                    "url": r.url,
+                    "snippet": r.content,
+                }
+                for r in response.results
+            ]
+        )
+
+    tool_def = ToolDef(
+        name="web_search",
+        description=(
+            "Search the internet for information related to the research paper. "
+            "Use for background context, related work, or current state of the art."
+        ),
+        parameters={
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "Search query",
+                },
+                "max_results": {
+                    "type": "integer",
+                    "description": "Number of results to return (default: 5)",
+                    "default": 5,
+                },
+            },
+            "required": ["query"],
+        },
+    )
+    return tool_def, web_search
