@@ -33,5 +33,7 @@ page 0 first.
 - Do not make more than 3 tool calls per question.
 - Cite specific passages with page numbers.
 - Be concise and accurate.
-- If you cannot find the answer, say so.\
+- If you cannot find the answer, say so.
+- When the user's message includes selected regions, they are pointing \
+at specific parts of the paper. Use that context to answer their question.\
 """

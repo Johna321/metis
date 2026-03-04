@@ -1,4 +1,4 @@
-from metis.core.prompts import format_query_with_selections
+from metis.core.prompts import SYSTEM_PROMPT, format_query_with_selections
 
 
 def test_no_selections_passthrough():
@@ -28,3 +28,7 @@ def test_multiple_selections_formatted():
     assert "First" in result
     assert "Second" in result
     assert result.index("First") < result.index("Second")
+
+
+def test_system_prompt_mentions_selections():
+    assert "selected region" in SYSTEM_PROMPT.lower()
