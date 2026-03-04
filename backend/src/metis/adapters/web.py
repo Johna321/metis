@@ -19,8 +19,8 @@ from pydantic import BaseModel
 from ..core.agent import run_agent
 from ..core.ingest import ingest_pdf_bytes, ingest_pdf_bytes_layout
 from ..core.llm import AnthropicModel, OpenAIModel, OpenRouterModel, StreamEvent
-from ..core.prompts import SYSTEM_PROMPT
-from ..core.retrieve import retrieve
+from ..core.prompts import SYSTEM_PROMPT, format_query_with_selections
+from ..core.retrieve import resolve_selections, retrieve
 from ..core.store import paths
 from ..core.tools import ToolRegistry, make_rag_retrieve_tool, make_read_page_tool, make_web_search_tool
 from ..core.vectorize import retrieve_semantic, vectorize_spans
@@ -98,9 +98,15 @@ class EvidenceItem(BaseModel):
     score: float
 
 
+class BBoxSelection(BaseModel):
+    page: int
+    bbox_norm: Tuple[float, float, float, float]
+
+
 class ChatRequest(BaseModel):
     doc_id: str
     message: str
+    selections: Optional[List[BBoxSelection]] = None
     provider: Optional[str] = None
     model: Optional[str] = None
 
@@ -270,6 +276,13 @@ def chat_endpoint(req: ChatRequest) -> Iterable[ServerSentEvent]:
         ws_def, ws_fn = make_web_search_tool(tavily_key)
         registry.register(ws_def.name, ws_def.description, ws_def.parameters, ws_fn)
 
+    # Resolve bbox selections to spans
+    enriched_query = req.message
+    if req.selections:
+        sel_dicts = [{"page": s.page, "bbox_norm": s.bbox_norm} for s in req.selections]
+        resolved = resolve_selections(req.doc_id, sel_dicts)
+        enriched_query = format_query_with_selections(req.message, resolved)
+
     # Queue-bridged SSE generator: run_agent uses a callback, not a generator,
     # so we bridge it via a queue consumed by a sync generator (Starlette runs
     # sync generators in a threadpool automatically).
@@ -282,7 +295,7 @@ def chat_endpoint(req: ChatRequest) -> Iterable[ServerSentEvent]:
         try:
             run_agent(
                 model=llm,
-                user_query=req.message,
+                user_query=enriched_query,
                 tools=registry,
                 system_prompt=SYSTEM_PROMPT,
                 max_iterations=AGENT_MAX_ITER,

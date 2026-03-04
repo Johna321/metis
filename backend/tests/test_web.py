@@ -288,3 +288,27 @@ class TestGetDocumentPdf:
     def test_get_document_pdf_404_for_missing_doc(self, client: TestClient):
         resp = client.get("/documents/sha256:doesnotexist/pdf")
         assert resp.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# BBoxSelection / ChatRequest unit tests
+# ---------------------------------------------------------------------------
+
+from metis.adapters.web import BBoxSelection, ChatRequest
+
+
+def test_chat_request_accepts_selections():
+    req = ChatRequest(
+        doc_id="sha256:abc",
+        message="What is this?",
+        selections=[
+            BBoxSelection(page=0, bbox_norm=(0.1, 0.2, 0.3, 0.4)),
+        ],
+    )
+    assert len(req.selections) == 1
+    assert req.selections[0].page == 0
+
+
+def test_chat_request_selections_optional():
+    req = ChatRequest(doc_id="sha256:abc", message="Hello")
+    assert req.selections is None
