@@ -3,13 +3,17 @@
 .spacer { flex: 1; }
 .main-split { flex: 1; display: flex; min-height: 0; }
 .viewer { flex: 1; overflow: auto; padding: 16px; display: flex; justify-content: center; min-height: 0; }
-.sidepanel { width: 360px; border-left: 1px solid rgba(0,0,0,0.1); padding: 12px; overflow: auto; }
-.panel-title { font-weight: 600; margin-bottom: 8px; }
-.panel-empty { opacity: 0.7; }
-.ev-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 10px; }
-.ev-item { border: 1px solid rgba(0,0,0,0.08); border-radius: 8px; padding: 10px; }
-.ev-meta { display: flex; gap: 10px; opacity: 0.7; font-size: 12px; margin-bottom: 6px; }
-.ev-text { font-size: 13px; white-space: pre-wrap; }
+.sidepanel { width: 360px; border-left: 1px solid rgba(0,0,0,0.1); display: flex; flex-direction: column; min-height: 0; }
+.panel-empty { padding: 12px; opacity: 0.7; font-size: 13px; }
+
+/* Chat */
+.chat-messages { flex: 1; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+.chat-bubble { max-width: 90%; padding: 8px 12px; border-radius: 12px; font-size: 13px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; }
+.chat-bubble--user { align-self: flex-end; background: #2563eb; color: #fff; border-bottom-right-radius: 4px; }
+.chat-bubble--assistant { align-self: flex-start; background: rgba(0,0,0,0.06); border-bottom-left-radius: 4px; }
+.chat-input-row { display: flex; gap: 6px; padding: 8px; border-top: 1px solid rgba(0,0,0,0.1); }
+.chat-textarea { flex: 1; resize: none; font-family: inherit; font-size: 13px; padding: 8px 10px; border-radius: 8px; border: 1px solid rgba(0,0,0,0.15); line-height: 1.4; }
+.chat-send-btn { align-self: flex-end; padding: 8px 14px; font-size: 13px; }
 
 /* BBox selection */
 .page-wrap { position: relative; }
@@ -48,6 +52,10 @@
     color: #fff;
     border-color: #93c5fd;
   }
+  .chat-bubble--assistant { background: rgba(255,255,255,0.08); }
+  .chat-textarea { background: #0f0f0f98; color: #f6f6f6; border-color: rgba(255,255,255,0.15); }
+  .chat-input-row { border-top-color: rgba(255,255,255,0.1); }
+  .sidepanel { border-left-color: rgba(255,255,255,0.1); }
 }
 
 
@@ -58,6 +66,9 @@
 .logo.react:hover {
   filter: drop-shadow(0 0 2em #61dafb);
 }
+*, *::before, *::after { box-sizing: border-box; }
+html, body, #root { margin: 0; padding: 0; height: 100%; }
+
 :root {
   font-family: Inter, Avenir, Helvetica, Arial, sans-serif;
   font-size: 16px;
