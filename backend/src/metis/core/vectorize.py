@@ -37,8 +37,10 @@ from rank_bm25 import BM25Okapi
 
 _bm25_cache: dict[str, tuple[BM25Okapi, list[str]]] = {}
 
-def _get_bm25_index(doc_id: str, spans: list[Span]) -> tuple[BM25Okapi, list[str]]:
+def _get_bm25_index(doc_id: str, spans: list[Span]) -> tuple[BM25Okapi | None, list[str]]:
     if doc_id not in _bm25_cache:
+        if not spans:
+            return None, []
         tokenized = [s.text.lower().split() for s in spans]
         bm25 = BM25Okapi(tokenized)
         span_ids = [s.span_id for s in spans]
@@ -47,6 +49,8 @@ def _get_bm25_index(doc_id: str, spans: list[Span]) -> tuple[BM25Okapi, list[str
 
 def _bm25_retrieve(doc_id: str, query: str, spans: list[Span]) -> list[tuple[str, float]]:
     bm25, span_ids = _get_bm25_index(doc_id, spans)
+    if bm25 is None:
+        return []
     tokenized_query = query.lower().split()
     scores = bm25.get_scores(tokenized_query)
     ranked = sorted(zip(span_ids, scores), key=lambda x: x[1], reverse=True)
