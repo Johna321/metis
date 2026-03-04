@@ -11,7 +11,7 @@ from ..core.retrieve import retrieve
 from ..core.store import paths, read_spans_jsonl
 from ..core.vectorize import vectorize_spans, retrieve_semantic
 from ..core.agent import run_agent
-from ..core.llm import AnthropicModel, OpenAIModel, StreamEvent
+from ..core.llm import AnthropicModel, OpenAIModel, OpenRouterModel, StreamEvent
 from ..core.tools import ToolRegistry, make_rag_retrieve_tool, make_web_search_tool
 from ..core.prompts import SYSTEM_PROMPT
 from ..settings import (
@@ -227,9 +227,11 @@ def chat(
             api_key = os.getenv("ANTHROPIC_API_KEY", "")
         elif prov == "openai":
             api_key = os.getenv("OPENAI_API_KEY", "")
+        elif prov == "openrouter":
+            api_key = os.getenv("OPENROUTER_API_KEY", "")
 
     if not api_key:
-        console.print("[red]No API key found. Set METIS_LLM_API_KEY or ANTHROPIC_API_KEY / OPENAI_API_KEY.[/red]")
+        console.print("[red]No API key found. Set METIS_LLM_API_KEY or ANTHROPIC_API_KEY / OPENAI_API_KEY / OPENROUTER_API_KEY.[/red]")
         raise typer.Exit(1)
 
     # Validate doc exists and has embeddings
@@ -260,8 +262,10 @@ def chat(
         llm = AnthropicModel(api_key=api_key, model=mod, temperature=AGENT_TEMPERATURE)
     elif prov == "openai":
         llm = OpenAIModel(api_key=api_key, model=mod, temperature=AGENT_TEMPERATURE)
+    elif prov == "openrouter":
+        llm = OpenRouterModel(api_key=api_key, model=mod, temperature=AGENT_TEMPERATURE)
     else:
-        console.print(f"[red]Unknown provider: {prov}. Use 'anthropic' or 'openai'.[/red]")
+        console.print(f"[red]Unknown provider: {prov}. Use 'anthropic', 'openai', or 'openrouter'.[/red]")
         raise typer.Exit(1)
 
     # Build tools

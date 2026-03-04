@@ -1,7 +1,5 @@
-import { useMemo, useRef, useState } from "react";
-import { isTauri } from '@tauri-apps/api/core';
+import { useEffect, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
-import { readFile } from "@tauri-apps/plugin-fs";
 
 import { Document, Page, pdfjs } from "react-pdf";
 import "react-pdf/dist/Page/TextLayer.css";
@@ -9,14 +7,13 @@ import "react-pdf/dist/Page/AnnotationLayer.css";
 
 import "./App.css";
 
-import { ingestPdf, retrieveEvidence, documentPdfUrl, type EvidenceItem } from "./backend/http";
+import { ingestPdf, retrieveEvidence, getDocumentPdfUrl, type EvidenceItem } from "./backend/http";
 
 pdfjs.GlobalWorkerOptions.workerSrc = new URL(
   "pdfjs-dist/build/pdf.worker.min.mjs",
   import.meta.url
 ).toString();
 
-const API_BASE = "http://127.0.0.1:8000";
 const MIN_DRAG_PX = 5;
 
 // BBox types
@@ -46,7 +43,7 @@ function App() {
   const [evidence, setEvidence] = useState<EvidenceItem[]>([]);
   const [status, setStatus] = useState<string>("");
 
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
 
   // BBox state
   const [bboxMode, setBboxMode] = useState(false);
@@ -55,51 +52,37 @@ function App() {
   const [liveRect, setLiveRect] = useState<LiveRect | null>(null);
   const [bboxSelections, setBboxSelections] = useState<BBoxSelection[]>([]);
 
-  async function ingestFromFile(file: File) {
+  // Resolve PDF URL whenever docId changes
+  useEffect(() => {
+    if (!docId) {
+      setPdfUrl(null);
+      return;
+    }
+    getDocumentPdfUrl(docId).then(setPdfUrl);
+  }, [docId]);
+
+  async function openPdf() {
+    const path = await open({
+      multiple: false,
+      filters: [{ name: "PDF", extensions: ["pdf"] }],
+    });
+
+    if (!path || Array.isArray(path)) return;
+
     setStatus("Ingesting...");
     setEvidence([]);
     setDocId(null);
     setNumPages(0);
 
     try {
-      const meta = await ingestPdf(API_BASE, file);
+      const meta = await ingestPdf(path);
       setDocId(meta.doc_id);
       setStatus("");
-    } catch (err) {
-      console.error(err);
-      setStatus("Ingest failed. Is the backend running?");
+    } catch (err: unknown) {
+      console.error("ingest_pdf error:", err);
+      setStatus(`Ingest failed: ${err}`);
     }
   }
-
-  async function openPdf() {
-    if (isTauri()) {
-      const path = await open({
-        multiple: false,
-        filters: [{ name: "PDF", extensions: ["pdf"] }],
-      });
-
-      if (!path || Array.isArray(path)) return;
-
-      const bytes = await readFile(path);
-      const blob = new Blob([bytes], { type: "application/pdf" });
-      const file = new File([blob], "document.pdf", { type: "application/pdf" });
-      await ingestFromFile(file);
-      return;
-    }
-
-    // web
-    fileInputRef.current?.click();
-  }
-
-  async function onWebFilePicked(e: React.ChangeEvent<HTMLInputElement>) {
-    const f = e.target.files?.[0];
-    if (!f) return;
-    await ingestFromFile(f);
-    e.target.value = "";  // allow picking same file twice
-  }
-
-  // render PDF by URL served from backend
-  const pdfUrl = useMemo(() => (docId ? documentPdfUrl(API_BASE, docId) : null), [docId]);
 
   // capture text selection & send retrieve request
   async function handleMouseUp(pageNumberOneBased: number) {
@@ -110,7 +93,7 @@ function App() {
 
     setStatus("Retrieving evidence...");
     try {
-      const ev = await retrieveEvidence(API_BASE, docId, pageNumberOneBased - 1, selected);
+      const ev = await retrieveEvidence(docId, pageNumberOneBased - 1, selected);
       setEvidence(ev);
       setStatus("");
     } catch (err) {
@@ -224,16 +207,6 @@ function App() {
         >
           BBox
         </button>
-
-        {!isTauri() && (
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="application/pdf"
-            style={{ display: "none" }}
-            onChange={onWebFilePicked}
-          />
-        )}
 
         <div className="spacer" />
         <span>{status}</span>
