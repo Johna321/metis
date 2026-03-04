@@ -163,6 +163,7 @@ class OpenAIModel:
         self._model = model
         self._temperature = temperature
 
+
     def _to_openai_messages(self, messages: list[Message], system: str) -> list[dict]:
         out = [{"role": "system", "content": system}]
         for m in messages:
@@ -274,3 +275,16 @@ class OpenAIModel:
             tool_calls=assembled_tool_calls if assembled_tool_calls else None,
         )
         yield StreamEvent(kind="message_done", message=final_msg)
+
+
+class OpenRouterModel(OpenAIModel):
+    """OpenAI-compatible adapter routed through OpenRouter."""
+
+    def __init__(self, api_key: str, model: str, temperature: float = 0.0):
+        import openai
+        self._client = openai.OpenAI(
+            api_key=api_key,
+            base_url="https://openrouter.ai/api/v1",
+        )
+        self._model = model
+        self._temperature = temperature
