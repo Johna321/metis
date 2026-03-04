@@ -7,7 +7,7 @@ import "react-pdf/dist/Page/AnnotationLayer.css";
 
 import "./App.css";
 
-import { ingestPdf, retrieveEvidence, getDocumentPdfUrl, chatStart, type EvidenceItem } from "./backend/http";
+import { ingestPdf, retrieveEvidence, getDocumentPdfUrl, chatStart, type EvidenceItem, type BboxSelection } from "./backend/http";
 
 pdfjs.GlobalWorkerOptions.workerSrc = new URL(
   "pdfjs-dist/build/pdf.worker.min.mjs",
@@ -256,9 +256,13 @@ function App() {
         unlistenRef.current?.();
         unlistenRef.current = null;
       },
-    }, {
-      provider: "openrouter", model: "openai/gpt-5.3-chat"}
-    )
+    }, bboxSelections.length > 0 
+      ? { selections: bboxSelections.map(s => ({ page: s.page, bbox_norm: s.bbox_norm })) }
+      : undefined,
+    );
+
+    // Clear bbox selections after sending message
+    setBboxSelections([]);
   }
 
   function handleChatKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
