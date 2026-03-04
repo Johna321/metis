@@ -1,7 +1,7 @@
 import numpy as np
 import orjson
 from metis.core.schema import Span
-from metis.core.vectorize import _filter_embeddable, vectorize_spans, retrieve_semantic, _get_bm25_index, _bm25_retrieve, _rrf_fuse
+from metis.core.vectorize import _filter_embeddable, vectorize_spans, retrieve_semantic, _get_bm25_index, _bm25_retrieve, _rrf_fuse, _mmr_rerank
 from metis.core.store import paths, write_spans_jsonl, write_json
 
 def _make_span(text="Hello world, this is a test span.", **kwargs):
@@ -159,3 +159,40 @@ def test_rrf_fuse_handles_disjoint():
     fused_ids = [sid for sid, _ in fused]
 
     assert set(fused_ids) == {"A", "B", "C", "D"}
+
+def test_mmr_rerank_pure_relevance():
+    """With lambda=1.0, MMR should return in relevance order."""
+    candidates = [("A", 0.9), ("B", 0.8), ("C", 0.7), ("D", 0.6)]
+    # Dummy embeddings: 4 candidates, 3 dims
+    embeddings = np.array([
+        [1.0, 0.0, 0.0],
+        [0.9, 0.1, 0.0],
+        [0.0, 1.0, 0.0],
+        [0.0, 0.0, 1.0],
+    ], dtype=np.float32)
+    query_vec = np.array([1.0, 0.0, 0.0], dtype=np.float32)
+    id_to_idx = {"A": 0, "B": 1, "C": 2, "D": 3}
+
+    result = _mmr_rerank(candidates, embeddings, query_vec, id_to_idx, top_k=3, mmr_lambda=1.0)
+    # Pure relevance: A > B > C
+    assert [sid for sid, _ in result] == ["A", "B", "C"]
+
+
+def test_mmr_rerank_diversity():
+    """With lambda=0.5, MMR should prefer diverse results over similar ones."""
+    candidates = [("A", 0.9), ("B", 0.85), ("C", 0.7)]
+    # A and B are nearly identical, C is orthogonal
+    embeddings = np.array([
+        [1.0, 0.0, 0.0],   # A
+        [0.99, 0.01, 0.0],  # B - almost same as A
+        [0.0, 1.0, 0.0],    # C - different direction
+    ], dtype=np.float32)
+    query_vec = np.array([1.0, 0.0, 0.0], dtype=np.float32)
+    id_to_idx = {"A": 0, "B": 1, "C": 2}
+
+    result = _mmr_rerank(candidates, embeddings, query_vec, id_to_idx, top_k=3, mmr_lambda=0.5)
+    result_ids = [sid for sid, _ in result]
+    # A should be first (highest relevance), C should beat B (diversity)
+    assert result_ids[0] == "A"
+    assert result_ids[1] == "C"  # diverse over similar
+

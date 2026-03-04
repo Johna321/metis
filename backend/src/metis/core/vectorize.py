@@ -60,9 +60,51 @@ def _rrf_fuse(
     scores: dict[str, float] = {}
     for rank, (sid, _) in enumerate(dense_ranked):
         scores[sid] = scores.get(sid, 0.0) + 1.0 / (rrf_k + rank + 1)
-    for rank, (sid, _) in enumerate(dense_ranked):
+    for rank, (sid, _) in enumerate(bm25_ranked):
         scores[sid] = scores.get(sid, 0.0) + 1.0 / (rrf_k + rank + 1)
     return sorted(scores.items(), key=lambda x: x[1], reverse=True)
+
+def _mmr_rerank(
+    candidates: list[tuple[str, float]],
+    embeddings: np.ndarray,
+    query_vec: np.ndarray,
+    id_to_idx: dict[str, int],
+    top_k: int,
+    mmr_lambda: float = 0.7,
+) -> list[tuple[str, float]]:
+    if not candidates:
+        return []
+
+    selected: list[tuple[str, float]] = []
+    remaining = list(candidates)
+
+    for _ in range(min(top_k, len(remaining))):
+        best_score = -float("inf")
+        best_idx = 0
+
+        for i, (sid, relevance) in enumerate(remaining):
+            emb_idx = id_to_idx.get(sid)
+            if emb_idx is None:
+                continue
+            cand_vec = embeddings[emb_idx]
+
+            # Max similarity to alreadys-selected spans
+            max_sim = 0.0
+            for sel_sid, _ in selected:
+                sel_emb_idx = id_to_idx.get(sel_sid)
+                if sel_emb_idx is not None:
+                    sim = float(cand_vec @ embeddings[sel_emb_idx])
+                    if sim > max_sim:
+                        max_sim = sim
+
+            mmr_score = mmr_lambda * relevance - (1 - mmr_lambda) * max_sim
+            if mmr_score > best_score:
+                best_score = mmr_score
+                best_idx = i
+
+        selected.append(remaining.pop(best_idx))
+
+    return selected
 
 def vectorize_spans(doc_id: str, model_name: str | None = None) -> dict:
     model_name = model_name or EMBED_MODEL
