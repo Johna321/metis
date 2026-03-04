@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 
 import { Document, Page, pdfjs } from "react-pdf";
@@ -7,7 +7,7 @@ import "react-pdf/dist/Page/AnnotationLayer.css";
 
 import "./App.css";
 
-import { ingestPdf, retrieveEvidence, getDocumentPdfUrl, type EvidenceItem } from "./backend/http";
+import { ingestPdf, retrieveEvidence, getDocumentPdfUrl, chatStart, type EvidenceItem } from "./backend/http";
 
 pdfjs.GlobalWorkerOptions.workerSrc = new URL(
   "pdfjs-dist/build/pdf.worker.min.mjs",
@@ -36,12 +36,24 @@ interface PageProxy {
   getViewport(opts: { scale: number }): { width: number; height: number };
 }
 
+type ChatMessage = {
+  role: "user" | "assistant";
+  content: string;
+};
+
 function App() {
   const [docId, setDocId] = useState<string | null>(null);
   const [numPages, setNumPages] = useState<number>(0);
 
   const [evidence, setEvidence] = useState<EvidenceItem[]>([]);
   const [status, setStatus] = useState<string>("");
+
+  // Chat state
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [chatInput, setChatInput] = useState("");
+  const [isStreaming, setIsStreaming] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const unlistenRef = useRef<(() => void) | null>(null);
 
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
 
@@ -91,15 +103,15 @@ function App() {
     const selected = window.getSelection()?.toString().trim() ?? "";
     if (selected.length < 3) return; // ignore tiny selections
 
-    setStatus("Retrieving evidence...");
-    try {
-      const ev = await retrieveEvidence(docId, pageNumberOneBased - 1, selected);
-      setEvidence(ev);
-      setStatus("");
-    } catch (err) {
-      console.error(err);
-      setStatus("Retrieve failed.");
-    }
+    // setStatus("Retrieving evidence...");
+    // try {
+    //   const ev = await retrieveEvidence(docId, pageNumberOneBased - 1, selected);
+    //   setEvidence(ev);
+    //   setStatus("");
+    // } catch (err) {
+    //   console.error(err);
+    //   setStatus("Retrieve failed.");
+    // }
   }
 
   // BBox handlers
@@ -193,6 +205,69 @@ function App() {
     setBboxSelections(prev => [...prev, selection]);
   }
 
+  // scroll to bottom whenever messages change
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  // Clean up stream listener on unmount
+  useEffect(() => () => { unlistenRef.current?.(); }, []);
+
+  async function handleSend() {
+    const text = chatInput.trim();
+    if (!text || !docId) return;
+
+    unlistenRef.current?.();
+    setChatInput("");
+    setIsStreaming(true);
+    setMessages(prev => [
+      ...prev,
+      { role: "user", content: text },
+      { role: "assistant", content: "" },
+    ]);
+
+    unlistenRef.current = await chatStart(docId, text, {
+      onTextDelta: (delta) => {
+        setMessages(prev => {
+          const updated = [...prev];
+          const last = updated[updated.length - 1];
+          updated[updated.length - 1] = { ...last, content: last.content + delta };
+          return updated;
+        });
+        console.log(delta);
+      },
+      onMessageDone: (_role, _content, toolCalls) => {
+        // Only clean up when the final message has no tool calls.
+        // Intermediate message_done events (with tool_calls) mean the agent
+        // is still running another iteration after executing the tools.
+        if (!toolCalls || (Array.isArray(toolCalls) && toolCalls.length === 0)) {
+          setIsStreaming(false);
+          unlistenRef.current?.();
+          unlistenRef.current = null;
+        }
+      },
+      onError: (msg) => {
+        setMessages(prev => {
+          const updated = [...prev];
+          updated[updated.length - 1] = { role: "assistant", content: `Error: ${msg}` };
+          return updated;
+        });
+        setIsStreaming(false);
+        unlistenRef.current?.();
+        unlistenRef.current = null;
+      },
+    }, {
+      provider: "openrouter", model: "openai/gpt-5.3-chat"}
+    )
+  }
+
+  function handleChatKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
+  }
+
   // ---
 
   return (
@@ -268,22 +343,35 @@ function App() {
         </main>
 
         <aside className="sidepanel">
-          <div className="panel-title">Evidence</div>
-          {evidence.length === 0 ? (
-            <div className="panel-empty">Select text in the PDF to retrieve evidence.</div>
-          ) : (
-            <ul className="ev-list">
-              {evidence.map((e) => (
-                <li key={e.span_id} className="ev-item">
-                  <div className="ev-meta">
-                    <span>p{e.page + 1}</span>
-                    <span>{e.score.toFixed(3)}</span>
-                  </div>
-                  <div className="ev-text">{e.text}</div>
-                </li>
-              ))}
-            </ul>
-          )}
+          <div className="chat-messages">
+            {messages.length === 0 && (
+              <div className="panel-empty">Ask a question about the document.</div>
+            )}
+            {messages.map((msg, i) => (
+              <div key={i} className={`chat-bubble chat-bubble--${msg.role}`}>
+                {msg.content}
+              </div>
+            ))}
+            <div ref={messagesEndRef} />
+          </div>
+          <div className="chat-input-row">
+            <textarea
+              className="chat-textarea"
+              value={chatInput}
+              onChange={e => setChatInput(e.target.value)}
+              onKeyDown={handleChatKeyDown}
+              placeholder="Ask about the paper… (Enter to send)"
+              rows={3}
+              disabled={!docId || isStreaming}
+            />
+            <button
+              className="chat-send-btn"
+              onClick={handleSend}
+              disabled={!docId || !chatInput.trim() || isStreaming}
+            >
+              Send
+            </button>
+          </div>
         </aside>
       </div>
     </div>
