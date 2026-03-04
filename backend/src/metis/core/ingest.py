@@ -17,7 +17,7 @@ def _norm_bbox(b: Tuple[float,float,float,float], w: float, h: float):
 # blocks-based ingestion 
 # ---------------------------------------------------------------------------
 
-def ingest_pdf_bytes(pdf_bytes: bytes) -> dict:
+def ingest_pdf_bytes(pdf_bytes: bytes, *, source_filename: str | None = None) -> dict:
     doc_id = doc_id_from_bytes(pdf_bytes)
     p = paths(doc_id)
     p["pdf"].write_bytes(pdf_bytes)
@@ -61,6 +61,8 @@ def ingest_pdf_bytes(pdf_bytes: bytes) -> dict:
         "n_spans": len(spans),
         "ingest": {"engine": "pymupdf", "min_chars": MIN_CHARS},
     }
+    if source_filename:
+        meta["source_filename"] = source_filename
     write_json(p["doc"], meta)
     write_spans_jsonl(p["spans"], spans)
     return meta
@@ -130,6 +132,7 @@ def ingest_pdf_bytes_layout(
     extract_words: bool = False,
     write_images: bool = False,
     dpi: int = 200,
+    source_filename: str | None = None,
 ) -> dict:
     """Ingest a PDF using pymupdf4llm for layout-aware spans.
 
@@ -323,6 +326,8 @@ def ingest_pdf_bytes_layout(
             "dpi": dpi,
         },
     }
+    if source_filename:
+        meta["source_filename"] = source_filename
 
     write_json(p["doc"], meta)
     write_spans_jsonl(p["spans"], spans)
