@@ -1,7 +1,7 @@
 import numpy as np
 import orjson
 from metis.core.schema import Span
-from metis.core.vectorize import _filter_embeddable, vectorize_spans, retrieve_semantic, _get_bm25_index, _bm25_retrieve, _rrf_fuse, _mmr_rerank
+from metis.core.vectorize import _filter_embeddable, vectorize_spans, retrieve_semantic, _get_bm25_index, _bm25_retrieve, _rrf_fuse, _mmr_rerank, retrieve_hybrid
 from metis.core.store import paths, write_spans_jsonl, write_json
 
 def _make_span(text="Hello world, this is a test span.", **kwargs):
@@ -196,3 +196,51 @@ def test_mmr_rerank_diversity():
     assert result_ids[0] == "A"
     assert result_ids[1] == "C"  # diverse over similar
 
+def test_retrieve_hybrid_returns_evidence(tmp_path, monkeypatch):
+    spans = [
+        _make_span(span_id="s0", text="The transformer architecture uses self-attention mechanisms."),
+        _make_span(span_id="s1", text="Stochastic gradient descent optimizes the loss function."),
+        _make_span(span_id="s2", text="Attention allows the model to focus on relevant tokens."),
+    ]
+    doc_id, p = _setup_doc(tmp_path, monkeypatch, spans)
+    vectorize_spans(doc_id)
+    results = retrieve_hybrid(doc_id, "transformer attention")
+    assert len(results) > 0
+    assert all(hasattr(r, "score") for r in results)
+    # attention-related spans should rank high
+    top_ids = [r.span_id for r in results[:2]]
+    assert "s0" in top_ids or "s2" in top_ids
+
+
+def test_retrieve_hybrid_finds_proper_nouns(tmp_path, monkeypatch):
+    """BM25 component should find exact keyword matches that dense misses."""
+    spans = [
+        _make_span(span_id="authors", text="Nandan Thakur, Nils Reimers, Andreas Rückle, Abhishek Srivastava, Iryna Gurevych"),
+        _make_span(span_id="abstract", text="We propose a heterogeneous benchmark for information retrieval evaluation."),
+        _make_span(span_id="methods", text="Our evaluation methodology uses multiple diverse datasets across different tasks."),
+    ]
+    doc_id, p = _setup_doc(tmp_path, monkeypatch, spans)
+    vectorize_spans(doc_id)
+    results = retrieve_hybrid(doc_id, "Nandan Thakur")
+    # BM25 should surface the author span even though dense embeddings won't
+    top_ids = [r.span_id for r in results]
+    assert "authors" in top_ids
+
+
+def test_retrieve_hybrid_respects_top_k(tmp_path, monkeypatch):
+    spans = [_make_span(span_id=f"s{i}", text=f"This is span number {i} about neural networks and deep learning.") for i in range(10)]
+    doc_id, p = _setup_doc(tmp_path, monkeypatch, spans)
+    vectorize_spans(doc_id)
+    results = retrieve_hybrid(doc_id, "neural networks", top_k=3)
+    assert len(results) <= 3
+
+
+def test_retrieve_hybrid_page_filter(tmp_path, monkeypatch):
+    spans = [
+        _make_span(span_id="p0", page=0, text="The transformer architecture uses self-attention mechanisms."),
+        _make_span(span_id="p1", page=1, text="Attention allows the model to focus on relevant tokens."),
+    ]
+    doc_id, p = _setup_doc(tmp_path, monkeypatch, spans)
+    vectorize_spans(doc_id)
+    results = retrieve_hybrid(doc_id, "attention", page=1)
+    assert all(r.page == 1 for r in results)
