@@ -30,9 +30,9 @@ class TestIngest:
         resp = client.post("/ingest", files={"file": ("test.pdf", pdf_bytes, "application/pdf")})
         assert resp.json()["n_spans"] > 0
 
-    def test_ingest_default_engine_is_blocks(self, client: TestClient, pdf_bytes: bytes):
+    def test_ingest_default_engine_is_layout(self, client: TestClient, pdf_bytes: bytes):
         resp = client.post("/ingest", files={"file": ("test.pdf", pdf_bytes, "application/pdf")})
-        assert resp.json()["ingest"]["engine"] == "pymupdf"
+        assert resp.json()["ingest"]["engine"] == "pymupdf4llm"
 
     def test_ingest_layout_engine(self, client: TestClient, pdf_bytes: bytes):
         resp = client.post(
