@@ -12,7 +12,7 @@ from ..core.store import paths, read_spans_jsonl
 from ..core.vectorize import vectorize_spans, retrieve_semantic
 from ..core.agent import run_agent
 from ..core.llm import AnthropicModel, OpenAIModel, OpenRouterModel, StreamEvent
-from ..core.tools import ToolRegistry, make_rag_retrieve_tool, make_web_search_tool
+from ..core.tools import ToolRegistry, make_rag_retrieve_tool, make_web_search_tool, make_read_page_tool
 from ..core.prompts import SYSTEM_PROMPT
 from ..settings import (
     LLM_PROVIDER, LLM_MODEL, LLM_API_KEY, TAVILY_API_KEY,
@@ -39,9 +39,9 @@ class Engine(str, Enum):
 @app.command()
 def ingest(
     pdf: Path,
-    engine: Engine = typer.Option(Engine.blocks, "--engine", help="Ingestion engine"),
-    extract_words: bool = typer.Option(False, "--extract-words/--no-extract-words", help="Extract word-level bboxes (layout only)"),
-    write_images: bool = typer.Option(False, "--write-images/--no-write-images", help="Materialize images (layout only)"),
+    engine: Engine = typer.Option(Engine.layout, "--engine", help="Ingestion engine"),
+    extract_words: bool = typer.Option(True, "--extract-words/--no-extract-words", help="Extract word-level bboxes (layout only)"),
+    write_images: bool = typer.Option(True, "--write-images/--no-write-images", help="Materialize images (layout only)"),
     dpi: int = typer.Option(200, "--dpi", help="Image DPI (layout only)"),
 ):
     # Enable info logging so layout engine counts are visible
@@ -52,10 +52,84 @@ def ingest(
             extract_words=extract_words,
             write_images=write_images,
             dpi=dpi,
+            source_filename=pdf.name,
         )
     else:
-        meta = ingest_pdf_bytes(pdf.read_bytes())
+        meta = ingest_pdf_bytes(pdf.read_bytes(), source_filename=pdf.name)
     print(meta)
+
+
+@app.command("ls")
+def list_docs(
+    full: bool = typer.Option(False, "--full", "-f", help="Show full doc_id hash"),
+):
+    """List all ingested documents and their status."""
+    import orjson
+    from rich.table import Table
+    from ..settings import DATA_DIR
+
+    doc_files = sorted(DATA_DIR.glob("*.doc.json"))
+    if not doc_files:
+        print("[dim]No documents found in DATA_DIR.[/dim]")
+        return
+
+    entries = []
+    for doc_file in doc_files:
+        meta = orjson.loads(doc_file.read_bytes())
+        doc_id = meta["doc_id"]
+        p = paths(doc_id)
+
+        # Display name: source_filename > PDF title > "—"
+        name = meta.get("source_filename")
+        if not name:
+            try:
+                import pymupdf
+                pdf_doc = pymupdf.open(p["pdf"])
+                pdf_title = pdf_doc.metadata.get("title", "").strip()
+                pdf_doc.close()
+                if pdf_title:
+                    name = pdf_title
+            except Exception:
+                pass
+
+        has_spans = p["spans"].exists()
+        has_embeddings = p["embeddings"].exists()
+        entries.append((doc_id, name, meta, has_spans, has_embeddings))
+
+    if full:
+        # List format: one doc per block, full hash visible
+        for i, (doc_id, name, meta, has_spans, has_embeddings) in enumerate(entries):
+            if i > 0:
+                print()
+            display_name = name or "—"
+            ingested = "[green]✓ ingested[/green]" if has_spans else "[red]✗ not ingested[/red]"
+            vectorized = "[green]✓ vectorized[/green]" if has_embeddings else "[red]✗ not vectorized[/red]"
+            print(f"[bold]{display_name}[/bold]")
+            print(f"  [cyan]{doc_id}[/cyan]")
+            print(f"  {meta.get('n_pages', '?')} pages, {meta.get('n_spans', '?')} spans  |  {ingested}  |  {vectorized}")
+    else:
+        # Table format with truncated hash
+        table = Table(title="Documents")
+        table.add_column("doc_id", style="cyan", no_wrap=True)
+        table.add_column("name", style="bold")
+        table.add_column("pages", justify="right")
+        table.add_column("spans", justify="right")
+        table.add_column("ingested", justify="center")
+        table.add_column("vectorized", justify="center")
+
+        for doc_id, name, meta, has_spans, has_embeddings in entries:
+            short_id = doc_id[:19]  # "sha256:" + 12 hex chars
+            ingested = "[green]✓[/green]" if has_spans else "[red]✗[/red]"
+            vectorized = "[green]✓[/green]" if has_embeddings else "[red]✗[/red]"
+            table.add_row(
+                short_id,
+                name or "[dim]—[/dim]",
+                str(meta.get("n_pages", "?")),
+                str(meta.get("n_spans", "?")),
+                ingested,
+                vectorized,
+            )
+        print(table)
 
 
 @app.command()
@@ -273,6 +347,9 @@ def chat(
     rag_def, rag_fn = make_rag_retrieve_tool(doc_id)
     registry.register(rag_def.name, rag_def.description, rag_def.parameters, rag_fn)
 
+    rp_def, rp_fn = make_read_page_tool(doc_id)
+    registry.register(rp_def.name, rp_def.description, rp_def.parameters, rp_fn)
+
     tavily_key = TAVILY_API_KEY or os.getenv("TAVILY_API_KEY", "")
     if tavily_key:
         ws_def, ws_fn = make_web_search_tool(tavily_key)
@@ -295,7 +372,15 @@ def chat(
     def on_tool_result(tool_name: str, arguments: dict, result_str: str) -> None:
         if not verbose:
             return
+
+        if tool_name == "read_page":
+            # Show first 200 chars of page text
+            display = result_str[:200] + "..." if len (result_str) > 200 else result_str
+            console.print(f"    [dim yellow]{display}[/dim yellow]")
+            return
+
         parsed = json.loads(result_str)
+
         if tool_name == "rag_retrieve" and isinstance(parsed, list):
             for i, chunk in enumerate(parsed):
                 score = chunk.get("score", 0)

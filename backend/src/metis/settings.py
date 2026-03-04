@@ -23,4 +23,5 @@ OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
 TAVILY_API_KEY = os.getenv("METIS_TAVILY_API_KEY", "") or os.getenv("TAVILY_API_KEY", "")
 AGENT_MAX_ITER = int(os.getenv("METIS_AGENT_MAX_ITER", "10"))
 AGENT_TEMPERATURE = float(os.getenv("METIS_AGENT_TEMPERATURE", "0.0"))
+MMR_LAMBDA = float(os.getenv("METIS_MMR_LAMBDA", "0.7"))
 
