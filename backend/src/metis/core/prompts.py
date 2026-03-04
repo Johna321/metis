@@ -1,3 +1,18 @@
+def format_query_with_selections(message: str, resolved_spans: list[dict] | None) -> str:
+    """Prepend resolved span context to the user message."""
+    if not resolved_spans:
+        return message
+
+    lines = ["The user has selected the following region(s) from the paper:", ""]
+    for i, span in enumerate(resolved_spans, 1):
+        lines.append(f"[Selection {i} — Page {span['page']}, IoU: {span['iou']:.2f}]")
+        lines.append(f'"{span["text"]}"')
+        lines.append("")
+
+    lines.append(f"User question: {message}")
+    return "\n".join(lines)
+
+
 SYSTEM_PROMPT = """\
 You are a research paper assistant. You have access to a specific paper \
 and tools to search it and read its pages.
