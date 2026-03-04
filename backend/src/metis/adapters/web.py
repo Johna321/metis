@@ -22,7 +22,7 @@ from ..core.llm import AnthropicModel, OpenAIModel, OpenRouterModel, StreamEvent
 from ..core.prompts import SYSTEM_PROMPT
 from ..core.retrieve import retrieve
 from ..core.store import paths
-from ..core.tools import ToolRegistry, make_rag_retrieve_tool, make_web_search_tool
+from ..core.tools import ToolRegistry, make_rag_retrieve_tool, make_read_page_tool, make_web_search_tool
 from ..core.vectorize import retrieve_semantic, vectorize_spans
 from ..settings import (
     AGENT_MAX_ITER,
@@ -144,21 +144,23 @@ def _stream_event_to_sse(event: StreamEvent) -> ServerSentEvent | None:
 @app.post("/ingest", response_model=IngestResponse)
 async def ingest_endpoint(
     file: UploadFile = File(...),
-    engine: Engine = Query(Engine.blocks),
-    extract_words: bool = Query(False),
-    write_images: bool = Query(False),
+    engine: Engine = Query(Engine.layout),
+    extract_words: bool = Query(True),
+    write_images: bool = Query(True),
     dpi: int = Query(200),
 ):
     pdf_bytes = await file.read()
+    source_filename = file.filename or None
     if engine == Engine.layout:
         meta = ingest_pdf_bytes_layout(
             pdf_bytes,
             extract_words=extract_words,
             write_images=write_images,
             dpi=dpi,
+            source_filename=source_filename,
         )
     else:
-        meta = ingest_pdf_bytes(pdf_bytes)
+        meta = ingest_pdf_bytes(pdf_bytes, source_filename=source_filename)
     return meta
 
 
@@ -258,6 +260,10 @@ def chat_endpoint(req: ChatRequest) -> Iterable[ServerSentEvent]:
     registry = ToolRegistry()
     rag_def, rag_fn = make_rag_retrieve_tool(req.doc_id)
     registry.register(rag_def.name, rag_def.description, rag_def.parameters, rag_fn)
+
+    if p["page_md"].exists():
+        rp_def, rp_fn = make_read_page_tool(req.doc_id)
+        registry.register(rp_def.name, rp_def.description, rp_def.parameters, rp_fn)
 
     tavily_key = TAVILY_API_KEY
     if tavily_key:

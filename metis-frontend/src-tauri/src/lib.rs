@@ -91,7 +91,7 @@ async fn ingest_pdf(file_path: String) -> Result<IngestResponse, MetisError> {
     let form = reqwest::multipart::Form::new().part("file", part);
 
     let resp = reqwest::Client::new()
-        .post(format!("{BACKEND_URL}/ingest?engine=blocks"))
+        .post(format!("{BACKEND_URL}/ingest"))
         .multipart(form)
         .send()
         .await
