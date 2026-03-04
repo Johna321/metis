@@ -52,6 +52,18 @@ def _bm25_retrieve(doc_id: str, query: str, spans: list[Span]) -> list[tuple[str
     ranked = sorted(zip(span_ids, scores), key=lambda x: x[1], reverse=True)
     return ranked
 
+def _rrf_fuse(
+    dense_ranked: list[tuple[str, float]],
+    bm25_ranked: list[tuple[str, float]],
+    rrf_k: int = 60,
+) -> list[tuple[str, float]]:
+    scores: dict[str, float] = {}
+    for rank, (sid, _) in enumerate(dense_ranked):
+        scores[sid] = scores.get(sid, 0.0) + 1.0 / (rrf_k + rank + 1)
+    for rank, (sid, _) in enumerate(dense_ranked):
+        scores[sid] = scores.get(sid, 0.0) + 1.0 / (rrf_k + rank + 1)
+    return sorted(scores.items(), key=lambda x: x[1], reverse=True)
+
 def vectorize_spans(doc_id: str, model_name: str | None = None) -> dict:
     model_name = model_name or EMBED_MODEL
     p = paths(doc_id)
