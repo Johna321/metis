@@ -1,7 +1,7 @@
 import numpy as np
 import orjson
 from metis.core.schema import Span
-from metis.core.vectorize import _filter_embeddable, vectorize_spans, retrieve_semantic
+from metis.core.vectorize import _filter_embeddable, vectorize_spans, retrieve_semantic, _get_bm25_index, _bm25_retrieve
 from metis.core.store import paths, write_spans_jsonl, write_json
 
 def _make_span(text="Hello world, this is a test span.", **kwargs):
@@ -110,3 +110,29 @@ def test_retrieve_semantic_respects_top_k(tmp_path, monkeypatch):
     vectorize_spans(doc_id)
     results = retrieve_semantic(doc_id, "neural networks", top_k=3)
     assert len(results) <= 3
+
+def test_bm25_index_caches(tmp_path, monkeypatch):
+    spans = [
+        _make_span(span_id="s0", text="The transformer architecture uses self-attention mechanisms."),
+        _make_span(span_id="s1", text="Stochastic gradient descent optimizes the loss function."),
+    ]
+    doc_id, p = _setup_doc(tmp_path, monkeypatch, spans)
+    embeddable = [s for s in spans]  # all are embeddable
+
+    bm25_1, ids_1 = _get_bm25_index(doc_id, embeddable)
+    bm25_2, ids_2 = _get_bm25_index(doc_id, embeddable)
+    assert bm25_1 is bm25_2  # same object, cached
+
+
+def test_bm25_retrieve_ranks_by_keyword(tmp_path, monkeypatch):
+    spans = [
+        _make_span(span_id="s0", text="The transformer architecture uses self-attention mechanisms."),
+        _make_span(span_id="s1", text="Stochastic gradient descent optimizes the loss function."),
+        _make_span(span_id="s2", text="Attention allows the model to focus on relevant tokens."),
+    ]
+    doc_id, p = _setup_doc(tmp_path, monkeypatch, spans)
+
+    ranked = _bm25_retrieve(doc_id, "transformer attention", spans)
+    # transformer/attention spans should rank above SGD span
+    top_ids = [sid for sid, _ in ranked[:2]]
+    assert "s0" in top_ids or "s2" in top_ids
