@@ -1,7 +1,7 @@
 import numpy as np
 import orjson
 from metis.core.schema import Span
-from metis.core.vectorize import _filter_embeddable, vectorize_spans, retrieve_semantic, _get_bm25_index, _bm25_retrieve
+from metis.core.vectorize import _filter_embeddable, vectorize_spans, retrieve_semantic, _get_bm25_index, _bm25_retrieve, _rrf_fuse
 from metis.core.store import paths, write_spans_jsonl, write_json
 
 def _make_span(text="Hello world, this is a test span.", **kwargs):
@@ -136,3 +136,26 @@ def test_bm25_retrieve_ranks_by_keyword(tmp_path, monkeypatch):
     # transformer/attention spans should rank above SGD span
     top_ids = [sid for sid, _ in ranked[:2]]
     assert "s0" in top_ids or "s2" in top_ids
+
+def test_rrf_fuse_combines_rankings():
+    # Dense ranking: A > B > C
+    dense_ranked = [("A", 0.9), ("B", 0.7), ("C", 0.5)]
+    # BM25 ranking: C > A > B
+    bm25_ranked = [("C", 5.0), ("A", 3.0), ("B", 1.0)]
+
+    fused = _rrf_fuse(dense_ranked, bm25_ranked, rrf_k=60)
+    fused_ids = [sid for sid, _ in fused]
+
+    # A appears high in both -> should be #1
+    assert fused_ids[0] == "A"
+    # All three should be present
+    assert set(fused_ids) == {"A", "B", "C"}
+
+def test_rrf_fuse_handles_disjoint():
+    dense_ranked = [("A", 0.9), ("B", 0.7)]
+    bm25_ranked = [("C", 5.0), ("D", 3.0)]
+
+    fused = _rrf_fuse(dense_ranked, bm25_ranked, rrf_k=60)
+    fused_ids = [sid for sid, _ in fused]
+
+    assert set(fused_ids) == {"A", "B", "C", "D"}
