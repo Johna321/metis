@@ -51,10 +51,11 @@ def test_rag_retrieve_tool_formats_evidence():
         assert parsed[0]["bbox_norm"] == [0.1, 0.2, 0.3, 0.4]
 
 def test_web_search_tool_formats_results():
-    mock_response = MagicMock()
-    mock_response.results = [
-        MagicMock(title="Result 1", url="https://example.com", content="Snippet 1"),
-    ]
+    mock_response = {
+        "results": [
+            {"title": "Result 1", "url": "https://example.com", "content": "Snippet 1"},
+        ]
+    }
     with patch("metis.core.tools.TavilyClient") as MockTavily:
         MockTavily.return_value.search.return_value = mock_response
         _, fn = make_web_search_tool(api_key="test-key")
