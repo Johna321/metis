@@ -302,7 +302,7 @@ def chat_endpoint(req: ChatRequest) -> Iterable[ServerSentEvent]:
                 break
             if isinstance(item, Exception):
                 yield ServerSentEvent(
-                    data={"detail": str(item)}, event="error"
+                    data={"message": str(item)}, event="error"
                 )
                 break
             sse = _stream_event_to_sse(item)

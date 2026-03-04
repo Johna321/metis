@@ -266,6 +266,14 @@ async fn chat_start(
                                 tool_calls,
                             }
                         }
+                        "error" => {
+                            let message = parsed["message"]
+                                .as_str()
+                                .or_else(|| parsed["detail"].as_str())
+                                .unwrap_or("Unknown error")
+                                .to_string();
+                            ChatStreamEvent::Error { message }
+                        }
                         _ => continue,
                     };
 
