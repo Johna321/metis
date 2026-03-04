@@ -156,6 +156,7 @@ async fn chat_start(
     message: String,
     provider: Option<String>,
     model: Option<String>,
+    selections: Option<Vec<serde_json::Value>>,
 ) -> Result<(), MetisError> {
     let mut body = serde_json::json!({
         "doc_id": doc_id,
@@ -166,6 +167,9 @@ async fn chat_start(
     }
     if let Some(m) = model {
         body["model"] = serde_json::Value::String(m);
+    }
+    if let Some(s) = selections {
+        body["selections"] = serde_json::Value::Array(s);
     }
 
     // Spawn the streaming task so invoke returns immediately

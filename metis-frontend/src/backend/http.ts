@@ -16,6 +16,11 @@ export type EvidenceItem = {
   score: number;
 };
 
+export type BboxSelection = {
+  page: number;
+  bbox_norm: [number, number, number, number];
+};
+
 export async function ingestPdf(filePath: string): Promise<IngestResponse> {
   return invoke("ingest_pdf", { filePath });
 }
@@ -87,7 +92,7 @@ export async function chatStart(
   docId: string,
   message: string,
   callbacks: ChatStreamCallbacks,
-  opts?: { provider?: string; model?: string },
+  opts?: { provider?: string; model?: string; selections?: BboxSelection[] },
 ): Promise<UnlistenFn> {
   const unlisten = await listen<ChatStreamEvent>("chat-stream", (event) => {
     const ev = event.payload;
@@ -118,6 +123,7 @@ export async function chatStart(
     message,
     provider: opts?.provider ?? null,
     model: opts?.model ?? null,
+    selections: opts?.selections ?? null,
   });
 
   return unlisten;
