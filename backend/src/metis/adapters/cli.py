@@ -12,7 +12,7 @@ from ..core.store import paths, read_spans_jsonl
 from ..core.vectorize import vectorize_spans, retrieve_semantic
 from ..core.agent import run_agent
 from ..core.llm import AnthropicModel, OpenAIModel, StreamEvent
-from ..core.tools import ToolRegistry, make_rag_retrieve_tool, make_web_search_tool
+from ..core.tools import ToolRegistry, make_rag_retrieve_tool, make_web_search_tool, make_read_page_tool
 from ..core.prompts import SYSTEM_PROMPT
 from ..settings import (
     LLM_PROVIDER, LLM_MODEL, LLM_API_KEY, TAVILY_API_KEY,
@@ -269,6 +269,9 @@ def chat(
     rag_def, rag_fn = make_rag_retrieve_tool(doc_id)
     registry.register(rag_def.name, rag_def.description, rag_def.parameters, rag_fn)
 
+    rp_def, rp_fn = make_read_page_tool(doc_id)
+    registry.register(rp_def.name, rp_def.description, rp_def.parameters, rp_fn)
+
     tavily_key = TAVILY_API_KEY or os.getenv("TAVILY_API_KEY", "")
     if tavily_key:
         ws_def, ws_fn = make_web_search_tool(tavily_key)
@@ -305,6 +308,10 @@ def chat(
                 title = r.get("title", "")
                 url = r.get("url", "")
                 console.print(f"    [dim yellow]#{i+1}: {title} — {url}[/dim yellow]")
+        elif tool_name == "read_page":
+            # Show first 200 chars of page text
+            display = result_str[:200] + "..." if len (result_str) > 200 else result_str
+            console.print(f"    [dim yellow]{display}[/dim yellow]")
         else:
             # Generic: show truncated JSON
             display = result_str[:200] + "..." if len(result_str) > 200 else result_str
