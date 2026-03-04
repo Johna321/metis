@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import queue
 import threading
 from collections.abc import Iterable
@@ -19,7 +18,7 @@ from pydantic import BaseModel
 
 from ..core.agent import run_agent
 from ..core.ingest import ingest_pdf_bytes, ingest_pdf_bytes_layout
-from ..core.llm import AnthropicModel, OpenAIModel, StreamEvent
+from ..core.llm import AnthropicModel, OpenAIModel, OpenRouterModel, StreamEvent
 from ..core.prompts import SYSTEM_PROMPT
 from ..core.retrieve import retrieve
 from ..core.store import paths
@@ -28,9 +27,12 @@ from ..core.vectorize import retrieve_semantic, vectorize_spans
 from ..settings import (
     AGENT_MAX_ITER,
     AGENT_TEMPERATURE,
+    ANTHROPIC_API_KEY,
     LLM_API_KEY,
     LLM_MODEL,
     LLM_PROVIDER,
+    OPENAI_API_KEY,
+    OPENROUTER_API_KEY,
     TAVILY_API_KEY,
 )
 
@@ -232,28 +234,32 @@ def chat_endpoint(req: ChatRequest) -> Iterable[ServerSentEvent]:
     api_key = LLM_API_KEY
     if not api_key:
         if prov == "anthropic":
-            api_key = os.getenv("ANTHROPIC_API_KEY", "")
+            api_key = ANTHROPIC_API_KEY
         elif prov == "openai":
-            api_key = os.getenv("OPENAI_API_KEY", "")
+            api_key = OPENAI_API_KEY
+        elif prov == "openrouter":
+            api_key = OPENROUTER_API_KEY
     if not api_key:
         raise HTTPException(
             status_code=500,
-            detail="No API key configured. Set METIS_LLM_API_KEY or ANTHROPIC_API_KEY / OPENAI_API_KEY.",
+            detail="No API key configured. Set METIS_LLM_API_KEY or ANTHROPIC_API_KEY / OPENAI_API_KEY / OPENROUTER_API_KEY.",
         )
 
     if prov == "anthropic":
         llm = AnthropicModel(api_key=api_key, model=mod, temperature=AGENT_TEMPERATURE)
     elif prov == "openai":
         llm = OpenAIModel(api_key=api_key, model=mod, temperature=AGENT_TEMPERATURE)
+    elif prov == "openrouter":
+        llm = OpenRouterModel(api_key=api_key, model=mod, temperature=AGENT_TEMPERATURE)
     else:
-        raise HTTPException(status_code=400, detail=f"Unknown provider: {prov}. Use 'anthropic' or 'openai'.")
+        raise HTTPException(status_code=400, detail=f"Unknown provider: {prov}. Use 'anthropic', 'openai', or 'openrouter'.")
 
     # Build tools
     registry = ToolRegistry()
     rag_def, rag_fn = make_rag_retrieve_tool(req.doc_id)
     registry.register(rag_def.name, rag_def.description, rag_def.parameters, rag_fn)
 
-    tavily_key = TAVILY_API_KEY or os.getenv("TAVILY_API_KEY", "")
+    tavily_key = TAVILY_API_KEY
     if tavily_key:
         ws_def, ws_fn = make_web_search_tool(tavily_key)
         registry.register(ws_def.name, ws_def.description, ws_def.parameters, ws_fn)
