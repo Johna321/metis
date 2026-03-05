@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
+import { convertFileSrc } from "@tauri-apps/api/core";
 
 import { Document, Page, pdfjs } from "react-pdf";
 import "react-pdf/dist/Page/TextLayer.css";
@@ -7,7 +8,7 @@ import "react-pdf/dist/Page/AnnotationLayer.css";
 
 import "./App.css";
 
-import { ingestPdf, vectorizeDoc, retrieveEvidence, getDocumentPdfUrl, chatStart, type EvidenceItem, type BboxSelection } from "./backend/http";
+import { ingestPdf, vectorizeDoc, retrieveEvidence, chatStart, type EvidenceItem, type BboxSelection } from "./backend/http";
 
 pdfjs.GlobalWorkerOptions.workerSrc = new URL(
   "pdfjs-dist/build/pdf.worker.min.mjs",
@@ -64,15 +65,6 @@ function App() {
   const [liveRect, setLiveRect] = useState<LiveRect | null>(null);
   const [bboxSelections, setBboxSelections] = useState<BBoxSelection[]>([]);
 
-  // Resolve PDF URL whenever docId changes
-  useEffect(() => {
-    if (!docId) {
-      setPdfUrl(null);
-      return;
-    }
-    getDocumentPdfUrl(docId).then(setPdfUrl);
-  }, [docId]);
-
   async function openPdf() {
     const path = await open({
       multiple: false,
@@ -81,11 +73,14 @@ function App() {
 
     if (!path || Array.isArray(path)) return;
 
-    setStatus("Ingesting...");
+    // Render the PDF immediately from the local file path
     setEvidence([]);
     setDocId(null);
     setNumPages(0);
+    setPdfUrl(convertFileSrc(path));
+    setStatus("Ingesting...");
 
+    // Ingest + vectorize in the background
     try {
       const meta = await ingestPdf(path);
       setStatus("Vectorizing...");
@@ -95,7 +90,7 @@ function App() {
       if (vec.was_cached) setTimeout(() => setStatus(""), 2000);
     } catch (err: unknown) {
       console.error("ingest error:", err);
-      setStatus(`Failed: ${err}`);
+      setStatus(`Ingest failed: ${err}`);
     }
   }
 

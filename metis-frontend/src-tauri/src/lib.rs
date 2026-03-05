@@ -7,7 +7,10 @@ use tauri_plugin_shell::{
     ShellExt,
 };
 
-struct SidecarHandle(Mutex<Option<CommandChild>>);
+struct SidecarHandle {
+    child: Mutex<Option<CommandChild>>,
+    pid: u32,
+}
 
 const BACKEND_URL: &str = "http://127.0.0.1:8000";
 
@@ -350,7 +353,11 @@ pub fn run() {
                 .spawn()
                 .expect("failed to spawn metis-web sidecar");
 
-            app.manage(SidecarHandle(Mutex::new(Some(child))));
+            let pid = child.pid();
+            app.manage(SidecarHandle {
+                child: Mutex::new(Some(child)),
+                pid,
+            });
 
             tauri::async_runtime::spawn(async move {
                 while let Some(event) = rx.recv().await {
@@ -379,14 +386,25 @@ pub fn run() {
             get_document_pdf_url,
             chat_start,
         ])
-        // .run(tauri::generate_context!())
-        // .expect("error while running tauri application");
         .build(tauri::generate_context!())
         .expect("error while building Tauri application")
         .run(|app, event| {
             if let tauri::RunEvent::Exit = event {
                 let state = app.state::<SidecarHandle>();
-                if let Ok(mut guard) = state.0.lock() {
+
+                #[cfg(unix)]
+                let _ = std::process::Command::new("kill")
+                    .args(["-15", &state.pid.to_string()])
+                    .status();
+
+                #[cfg(windows)]
+                let _ = std::process::Command::new("taskkill")
+                    .args(["/F", "/T", "/PID", &state.pid.to_string()])
+                    .status();
+
+                // Wait a little, then send SIGKILL to ensure process is dead
+                std::thread::sleep(std::time::Duration::from_millis(500));
+                if let Ok(mut guard) = state.child.lock() {
                     if let Some(child) = guard.take() {
                         let _ = child.kill();
                     }
