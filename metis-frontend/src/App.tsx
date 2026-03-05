@@ -234,15 +234,10 @@ function App() {
         });
         console.log(delta);
       },
-      onMessageDone: (_role, _content, toolCalls) => {
-        // Only clean up when the final message has no tool calls.
-        // Intermediate message_done events (with tool_calls) mean the agent
-        // is still running another iteration after executing the tools.
-        if (!toolCalls || (Array.isArray(toolCalls) && toolCalls.length === 0)) {
-          setIsStreaming(false);
-          unlistenRef.current?.();
-          unlistenRef.current = null;
-        }
+      onAgentDone: () => {
+        setIsStreaming(false);
+        unlistenRef.current?.();
+        unlistenRef.current = null;
       },
       onError: (msg) => {
         setMessages(prev => {

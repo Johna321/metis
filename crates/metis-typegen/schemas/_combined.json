@@ -1,0 +1,342 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "BboxSelection": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "properties": {
+        "bbox_norm": {
+          "items": {
+            "format": "double",
+            "type": "number"
+          },
+          "maxItems": 4,
+          "minItems": 4,
+          "type": "array"
+        },
+        "page": {
+          "format": "uint32",
+          "minimum": 0.0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "bbox_norm",
+        "page"
+      ],
+      "title": "BboxSelection",
+      "type": "object"
+    },
+    "ChatRequest": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "definitions": {
+        "BboxSelection": {
+          "properties": {
+            "bbox_norm": {
+              "items": {
+                "format": "double",
+                "type": "number"
+              },
+              "maxItems": 4,
+              "minItems": 4,
+              "type": "array"
+            },
+            "page": {
+              "format": "uint32",
+              "minimum": 0.0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "bbox_norm",
+            "page"
+          ],
+          "type": "object"
+        }
+      },
+      "properties": {
+        "doc_id": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        },
+        "model": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "provider": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "selections": {
+          "items": {
+            "$ref": "#/definitions/BboxSelection"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "doc_id",
+        "message"
+      ],
+      "title": "ChatRequest",
+      "type": "object"
+    },
+    "ChatStreamEvent": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "oneOf": [
+        {
+          "properties": {
+            "kind": {
+              "enum": [
+                "TextDelta"
+              ],
+              "type": "string"
+            },
+            "text": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "text"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "kind": {
+              "enum": [
+                "ToolCallStart"
+              ],
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "name"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "kind": {
+              "enum": [
+                "ToolCallDelta"
+              ],
+              "type": "string"
+            },
+            "text": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "text"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "arguments": true,
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "enum": [
+                "ToolCallDone"
+              ],
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "arguments",
+            "id",
+            "kind",
+            "name"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "content": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "kind": {
+              "enum": [
+                "MessageDone"
+              ],
+              "type": "string"
+            },
+            "role": {
+              "type": "string"
+            },
+            "tool_calls": true
+          },
+          "required": [
+            "kind",
+            "role"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "kind": {
+              "enum": [
+                "AgentDone"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "kind": {
+              "enum": [
+                "Error"
+              ],
+              "type": "string"
+            },
+            "message": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "message"
+          ],
+          "type": "object"
+        }
+      ],
+      "title": "ChatStreamEvent"
+    },
+    "EvidenceItem": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "properties": {
+        "bbox_norm": {
+          "items": {
+            "format": "double",
+            "type": "number"
+          },
+          "maxItems": 4,
+          "minItems": 4,
+          "type": "array"
+        },
+        "page": {
+          "format": "uint32",
+          "minimum": 0.0,
+          "type": "integer"
+        },
+        "score": {
+          "format": "double",
+          "type": "number"
+        },
+        "span_id": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "bbox_norm",
+        "page",
+        "score",
+        "span_id",
+        "text"
+      ],
+      "title": "EvidenceItem",
+      "type": "object"
+    },
+    "IngestResponse": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "properties": {
+        "doc_id": {
+          "type": "string"
+        },
+        "ingest": true,
+        "n_pages": {
+          "format": "uint32",
+          "minimum": 0.0,
+          "type": "integer"
+        },
+        "n_spans": {
+          "format": "uint32",
+          "minimum": 0.0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "doc_id",
+        "ingest",
+        "n_pages",
+        "n_spans"
+      ],
+      "title": "IngestResponse",
+      "type": "object"
+    },
+    "VectorizeResponse": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "properties": {
+        "dim": {
+          "format": "uint32",
+          "minimum": 0.0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "doc_id": {
+          "type": "string"
+        },
+        "model": {
+          "type": "string"
+        },
+        "n_embedded": {
+          "format": "uint32",
+          "minimum": 0.0,
+          "type": "integer"
+        },
+        "n_skipped": {
+          "format": "uint32",
+          "minimum": 0.0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "was_cached": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "doc_id",
+        "model",
+        "n_embedded",
+        "was_cached"
+      ],
+      "title": "VectorizeResponse",
+      "type": "object"
+    }
+  }
+}

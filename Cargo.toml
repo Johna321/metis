@@ -1,0 +1,7 @@
+[workspace]
+members = [
+    "crates/metis-types",
+    "crates/metis-typegen",
+    "metis-frontend/src-tauri",
+]
+resolver = "2"

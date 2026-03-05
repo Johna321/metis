@@ -1,0 +1,63 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ChatRequest",
+  "type": "object",
+  "required": [
+    "doc_id",
+    "message"
+  ],
+  "properties": {
+    "doc_id": {
+      "type": "string"
+    },
+    "message": {
+      "type": "string"
+    },
+    "model": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "provider": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "selections": {
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "$ref": "#/definitions/BboxSelection"
+      }
+    }
+  },
+  "definitions": {
+    "BboxSelection": {
+      "type": "object",
+      "required": [
+        "bbox_norm",
+        "page"
+      ],
+      "properties": {
+        "bbox_norm": {
+          "type": "array",
+          "items": {
+            "type": "number",
+            "format": "double"
+          },
+          "maxItems": 4,
+          "minItems": 4
+        },
+        "page": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0.0
+        }
+      }
+    }
+  }
+}

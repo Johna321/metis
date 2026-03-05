@@ -8,6 +8,9 @@ data/
 debug/
 *.egg-info/
 
+# Rust
+target/
+
 # Env
 .env
 .env.local
