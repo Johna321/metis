@@ -142,6 +142,8 @@ def _stream_event_to_sse(event: StreamEvent) -> ServerSentEvent | None:
                 for tc in msg.tool_calls
             ]
         return ServerSentEvent(data=payload, event="message_done")
+    elif event.kind == "agent_done":
+        return ServerSentEvent(data={}, event="agent_done")
     return None
 
 

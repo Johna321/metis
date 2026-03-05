@@ -63,6 +63,7 @@ pub enum ChatStreamEvent {
         content: Option<String>,
         tool_calls: Option<serde_json::Value>,
     },
+    AgentDone,
     Error {
         message: String,
     },
@@ -317,6 +318,7 @@ async fn chat_start(
                                 tool_calls,
                             }
                         }
+                        "agent_done" => ChatStreamEvent::AgentDone,
                         "error" => {
                             let message = parsed["message"]
                                 .as_str()

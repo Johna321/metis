@@ -62,6 +62,7 @@ export type ChatStreamEvent =
   | { kind: "ToolCallDelta"; text: string }
   | { kind: "ToolCallDone"; id: string; name: string; arguments: unknown }
   | { kind: "MessageDone"; role: string; content: string | null; tool_calls: unknown | null }
+  | { kind: "AgentDone" }
   | { kind: "Error"; message: string };
 
 export type ChatStreamCallbacks = {
@@ -70,6 +71,7 @@ export type ChatStreamCallbacks = {
   onToolCallDelta?: (text: string) => void;
   onToolCallDone?: (id: string, name: string, args: unknown) => void;
   onMessageDone?: (role: string, content: string | null, toolCalls: unknown | null) => void;
+  onAgentDone?: () => void;
   onError?: (message: string) => void;
 };
 
@@ -90,8 +92,8 @@ export type ChatStreamCallbacks = {
  *       onTextDelta: (t) => setResponse((prev) => prev + t),
  *       onToolCallStart: (name) => console.log("calling tool:", name),
  *       onError: (msg) => setStatus(`Error: ${msg}`),
- *       onMessageDone: () => {
- *         // Stream finished — clean up listener
+ *       onAgentDone: () => {
+ *         // Agent finished — clean up listener
  *         unlistenRef.current?.();
  *         unlistenRef.current = null;
  *       },
@@ -124,6 +126,9 @@ export async function chatStart(
         break;
       case "MessageDone":
         callbacks.onMessageDone?.(ev.role, ev.content, ev.tool_calls);
+        break;
+      case "AgentDone":
+        callbacks.onAgentDone?.();
         break;
       case "Error":
         callbacks.onError?.(ev.message);

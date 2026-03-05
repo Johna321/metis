@@ -33,6 +33,8 @@ def run_agent(
 
         # If no tool calls, we have our final answer
         if not final_message.tool_calls:
+            if on_stream is not None:
+                on_stream(StreamEvent(kind="agent_done"))
             return final_message
 
         # Execute tool calls and append results
@@ -46,4 +48,6 @@ def run_agent(
         messages.append(Message(role="tool", tool_results=tool_results))
 
     # Max iterations reached, return whatever we have
+    if on_stream is not None:
+        on_stream(StreamEvent(kind="agent_done"))
     return final_message or Message(role="assistant", content="I was unable to complete the request within the iteration limit.")
