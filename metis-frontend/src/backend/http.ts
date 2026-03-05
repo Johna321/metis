@@ -14,6 +14,7 @@ export type VectorizeResponse = {
   n_skipped: number | null;
   model: string;
   dim: number | null;
+  was_cached: boolean;
 };
 
 export type EvidenceItem = {

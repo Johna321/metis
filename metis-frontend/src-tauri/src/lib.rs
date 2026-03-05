@@ -26,6 +26,7 @@ pub struct VectorizeResponse {
     pub n_skipped: Option<u32>,
     pub model: String,
     pub dim: Option<u32>,
+    pub was_cached: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

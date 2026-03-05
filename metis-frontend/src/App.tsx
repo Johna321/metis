@@ -89,9 +89,10 @@ function App() {
     try {
       const meta = await ingestPdf(path);
       setStatus("Vectorizing...");
-      await vectorizeDoc(meta.doc_id);
+      const vec = await vectorizeDoc(meta.doc_id);
       setDocId(meta.doc_id);
-      setStatus("");
+      setStatus(vec.was_cached ? "Loaded (embeddings cached)" : "");
+      if (vec.was_cached) setTimeout(() => setStatus(""), 2000);
     } catch (err: unknown) {
       console.error("ingest error:", err);
       setStatus(`Failed: ${err}`);

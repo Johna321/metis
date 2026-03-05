@@ -183,11 +183,31 @@ def retrieve_hybrid(
 def vectorize_spans(doc_id: str, model_name: str | None = None) -> dict:
     model_name = model_name or EMBED_MODEL
     p = paths(doc_id)
+
+    if p["embeddings"].exists() and p["embeddings_meta"].exists():
+        meta = orjson.loads(p["embeddings_meta"].read_bytes())
+        embeddings = np.load(p["embeddings"])
+        return {
+            "doc_id": doc_id,
+            "n_embedded": embeddings.shape[0],
+            "n_skipped": None,
+            "model": meta.get("model", model_name),
+            "dim": meta["dim"],
+            "was_cached": True,
+        }
+
     spans = read_spans_jsonl(p["spans"])
     embeddable = _filter_embeddable(spans)
 
     if not embeddable:
-        return {"doc_id": doc_id, "n_embedded": 0, "model": model_name}
+        return {
+            "doc_id": doc_id,
+            "n_embedded": 0,
+            "n_skipped": len(spans),
+            "model": model_name,
+            "dim": None,
+            "was_cached": False,
+        }
 
     model = _load_model(model_name)
     texts = [s.text for s in embeddable]
@@ -208,6 +228,7 @@ def vectorize_spans(doc_id: str, model_name: str | None = None) -> dict:
         "n_skipped": len(spans) - len(embeddable),
         "model": model_name,
         "dim": meta["dim"],
+        "was_cached": False,
     }
 
 

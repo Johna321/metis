@@ -82,6 +82,7 @@ class VectorizeResponse(BaseModel):
     n_skipped: Optional[int] = None
     model: str
     dim: Optional[int] = None
+    was_cached: bool = False
 
 
 class SemanticRetrieveRequest(BaseModel):
