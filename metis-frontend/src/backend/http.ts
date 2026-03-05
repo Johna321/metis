@@ -7,7 +7,7 @@ export type {
   EvidenceItem,
   BboxSelection,
   ChatStreamEvent,
-} from "./generated";
+} from "./generated_types";
 
 import type {
   IngestResponse,
@@ -15,7 +15,7 @@ import type {
   EvidenceItem,
   BboxSelection,
   ChatStreamEvent,
-} from "./generated";
+} from "./generated_types";
 
 export async function ingestPdf(filePath: string): Promise<IngestResponse> {
   return invoke("ingest_pdf", { filePath });

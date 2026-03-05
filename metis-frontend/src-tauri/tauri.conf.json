@@ -6,7 +6,7 @@
   "build": {
     "beforeDevCommand": "bun run setup:sidecar && bun run dev",
     "devUrl": "http://localhost:1420",
-    "beforeBuildCommand": "bun run build",
+    "beforeBuildCommand": "bun run build:sidecar && bun run build",
     "frontendDist": "../dist"
   },
   "app": {
@@ -21,7 +21,9 @@
       "csp": null,
       "assetProtocol": {
         "enable": true,
-        "scope": ["$HOME/**"]
+        "scope": [
+          "$HOME/**"
+        ]
       }
     }
   },
@@ -35,6 +37,8 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "externalBin": ["binaries/metis-web"]
+    "externalBin": [
+      "binaries/metis-web"
+    ]
   }
 }

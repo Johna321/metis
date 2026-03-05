@@ -5,7 +5,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SCHEMA_DIR="$ROOT/crates/metis-typegen/schemas"
 
 # Output paths — change these to relocate generated files
-TS_OUTPUT="$ROOT/metis-frontend/src/backend/generated.ts"
+TS_OUTPUT="$ROOT/metis-frontend/src/backend/generated_types.ts"
 PY_OUTPUT="$ROOT/backend/src/metis/core/generated_types.py"
 
 echo "==> Generating JSON Schemas from Rust types..."
