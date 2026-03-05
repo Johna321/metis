@@ -8,6 +8,14 @@ export type IngestResponse = {
   ingest: Record<string, unknown>;
 };
 
+export type VectorizeResponse = {
+  doc_id: string;
+  n_embedded: number;
+  n_skipped: number | null;
+  model: string;
+  dim: number | null;
+};
+
 export type EvidenceItem = {
   span_id: string;
   page: number;
@@ -23,6 +31,10 @@ export type BboxSelection = {
 
 export async function ingestPdf(filePath: string): Promise<IngestResponse> {
   return invoke("ingest_pdf", { filePath });
+}
+
+export async function vectorizeDoc(docId: String): Promise<VectorizeResponse> {
+  return invoke("vectorize_doc", { docId });
 }
 
 export async function retrieveEvidence(

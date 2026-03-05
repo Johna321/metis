@@ -7,7 +7,7 @@ import "react-pdf/dist/Page/AnnotationLayer.css";
 
 import "./App.css";
 
-import { ingestPdf, retrieveEvidence, getDocumentPdfUrl, chatStart, type EvidenceItem, type BboxSelection } from "./backend/http";
+import { ingestPdf, vectorizeDoc, retrieveEvidence, getDocumentPdfUrl, chatStart, type EvidenceItem, type BboxSelection } from "./backend/http";
 
 pdfjs.GlobalWorkerOptions.workerSrc = new URL(
   "pdfjs-dist/build/pdf.worker.min.mjs",
@@ -88,11 +88,13 @@ function App() {
 
     try {
       const meta = await ingestPdf(path);
+      setStatus("Vectorizing...");
+      await vectorizeDoc(meta.doc_id);
       setDocId(meta.doc_id);
       setStatus("");
     } catch (err: unknown) {
-      console.error("ingest_pdf error:", err);
-      setStatus(`Ingest failed: ${err}`);
+      console.error("ingest error:", err);
+      setStatus(`Failed: ${err}`);
     }
   }
 
