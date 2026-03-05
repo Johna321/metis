@@ -1,0 +1,9 @@
+[package]
+name = "metis-typegen"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+metis-types = { path = "../metis-types" }
+schemars = "0.8"
+serde_json = "1"

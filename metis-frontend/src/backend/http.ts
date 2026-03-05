@@ -1,34 +1,21 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 
-export type IngestResponse = {
-  doc_id: string;
-  n_pages: number;
-  n_spans: number;
-  ingest: Record<string, unknown>;
-};
+export type {
+  IngestResponse,
+  VectorizeResponse,
+  EvidenceItem,
+  BboxSelection,
+  ChatStreamEvent,
+} from "./generated";
 
-export type VectorizeResponse = {
-  doc_id: string;
-  n_embedded: number;
-  n_skipped: number | null;
-  model: string;
-  dim: number | null;
-  was_cached: boolean;
-};
-
-export type EvidenceItem = {
-  span_id: string;
-  page: number;
-  bbox_norm: [number, number, number, number]; // (x0,y0,x1,y1) normalized 0..1
-  text: string;
-  score: number;
-};
-
-export type BboxSelection = {
-  page: number;
-  bbox_norm: [number, number, number, number];
-};
+import type {
+  IngestResponse,
+  VectorizeResponse,
+  EvidenceItem,
+  BboxSelection,
+  ChatStreamEvent,
+} from "./generated";
 
 export async function ingestPdf(filePath: string): Promise<IngestResponse> {
   return invoke("ingest_pdf", { filePath });
@@ -54,16 +41,7 @@ export async function getDocumentPdfUrl(docId: string): Promise<string> {
   return invoke("get_document_pdf_url", { docId });
 }
 
-// Chat streaming types and callback
-
-export type ChatStreamEvent =
-  | { kind: "TextDelta"; text: string }
-  | { kind: "ToolCallStart"; name: string }
-  | { kind: "ToolCallDelta"; text: string }
-  | { kind: "ToolCallDone"; id: string; name: string; arguments: unknown }
-  | { kind: "MessageDone"; role: string; content: string | null; tool_calls: unknown | null }
-  | { kind: "AgentDone" }
-  | { kind: "Error"; message: string };
+// Chat streaming callbacks
 
 export type ChatStreamCallbacks = {
   onTextDelta?: (text: string) => void;
@@ -125,7 +103,7 @@ export async function chatStart(
         callbacks.onToolCallDone?.(ev.id, ev.name, ev.arguments);
         break;
       case "MessageDone":
-        callbacks.onMessageDone?.(ev.role, ev.content, ev.tool_calls);
+        callbacks.onMessageDone?.(ev.role, ev.content ?? null, ev.tool_calls ?? null);
         break;
       case "AgentDone":
         callbacks.onAgentDone?.();

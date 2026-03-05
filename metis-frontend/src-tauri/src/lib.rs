@@ -1,5 +1,6 @@
 use futures::StreamExt;
-use serde::{Deserialize, Serialize};
+use metis_types::{BboxSelection, ChatStreamEvent, EvidenceItem, IngestResponse, VectorizeResponse};
+use serde::Serialize;
 use std::sync::Mutex;
 use tauri::{Emitter, Manager};
 use tauri_plugin_shell::{
@@ -13,61 +14,6 @@ struct SidecarHandle {
 }
 
 const BACKEND_URL: &str = "http://127.0.0.1:8000";
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct IngestResponse {
-    pub doc_id: String,
-    pub n_pages: u32,
-    pub n_spans: u32,
-    pub ingest: serde_json::Value,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct VectorizeResponse {
-    pub doc_id: String,
-    pub n_embedded: u32,
-    pub n_skipped: Option<u32>,
-    pub model: String,
-    pub dim: Option<u32>,
-    pub was_cached: bool,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct EvidenceItem {
-    pub span_id: String,
-    pub page: u32,
-    pub bbox_norm: [f64; 4],
-    pub text: String,
-    pub score: f64,
-}
-
-#[derive(Clone, Debug, Serialize)]
-#[serde(tag = "kind")]
-pub enum ChatStreamEvent {
-    TextDelta {
-        text: String,
-    },
-    ToolCallStart {
-        name: String,
-    },
-    ToolCallDelta {
-        text: String,
-    },
-    ToolCallDone {
-        id: String,
-        name: String,
-        arguments: serde_json::Value,
-    },
-    MessageDone {
-        role: String,
-        content: Option<String>,
-        tool_calls: Option<serde_json::Value>,
-    },
-    AgentDone,
-    Error {
-        message: String,
-    },
-}
 
 #[derive(Debug, thiserror::Error)]
 pub enum MetisError {
@@ -204,7 +150,7 @@ async fn chat_start(
     message: String,
     provider: Option<String>,
     model: Option<String>,
-    selections: Option<Vec<serde_json::Value>>,
+    selections: Option<Vec<BboxSelection>>,
 ) -> Result<(), MetisError> {
     let mut body = serde_json::json!({
         "doc_id": doc_id,
@@ -217,7 +163,7 @@ async fn chat_start(
         body["model"] = serde_json::Value::String(m);
     }
     if let Some(s) = selections {
-        body["selections"] = serde_json::Value::Array(s);
+        body["selections"] = serde_json::to_value(s).unwrap_or_default();
     }
 
     // Spawn the streaming task so invoke returns immediately

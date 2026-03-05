@@ -7,7 +7,7 @@ import queue
 import threading
 from collections.abc import Iterable
 from enum import Enum
-from typing import List, Optional, Tuple
+from typing import List, Optional
 
 import orjson
 import uvicorn
@@ -18,6 +18,13 @@ from fastapi.sse import EventSourceResponse, ServerSentEvent
 from pydantic import BaseModel
 
 from ..core.agent import run_agent
+from ..core.generated_types import (
+    BboxSelection as BBoxSelection,
+    ChatRequest,
+    EvidenceItem,
+    IngestResponse,
+    VectorizeResponse,
+)
 from ..core.ingest import ingest_pdf_bytes, ingest_pdf_bytes_layout
 from ..core.llm import AnthropicModel, OpenAIModel, OpenRouterModel, StreamEvent
 from ..core.prompts import SYSTEM_PROMPT, format_query_with_selections
@@ -59,13 +66,6 @@ class Engine(str, Enum):
     layout = "layout"
 
 
-class IngestResponse(BaseModel):
-    doc_id: str
-    n_pages: int
-    n_spans: int
-    ingest: dict
-
-
 class RetrieveRequest(BaseModel):
     doc_id: str
     page: int
@@ -76,41 +76,11 @@ class VectorizeRequest(BaseModel):
     doc_id: str
 
 
-class VectorizeResponse(BaseModel):
-    doc_id: str
-    n_embedded: int
-    n_skipped: Optional[int] = None
-    model: str
-    dim: Optional[int] = None
-    was_cached: bool = False
-
-
 class SemanticRetrieveRequest(BaseModel):
     doc_id: str
     query: str
     page: Optional[int] = None
     top_k: Optional[int] = None
-
-
-class EvidenceItem(BaseModel):
-    span_id: str
-    page: int
-    bbox_norm: Tuple[float, float, float, float]
-    text: str
-    score: float
-
-
-class BBoxSelection(BaseModel):
-    page: int
-    bbox_norm: Tuple[float, float, float, float]
-
-
-class ChatRequest(BaseModel):
-    doc_id: str
-    message: str
-    selections: Optional[List[BBoxSelection]] = None
-    provider: Optional[str] = None
-    model: Optional[str] = None
 
 
 # ---------------------------------------------------------------------------
