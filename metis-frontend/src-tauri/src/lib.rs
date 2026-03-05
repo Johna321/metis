@@ -1,6 +1,16 @@
 use futures::StreamExt;
 use serde::{Deserialize, Serialize};
-use tauri::Emitter;
+use std::sync::Mutex;
+use tauri::{Emitter, Manager};
+use tauri_plugin_shell::{
+    process::{CommandChild, CommandEvent},
+    ShellExt,
+};
+
+struct SidecarHandle {
+    child: Mutex<Option<CommandChild>>,
+    pid: u32,
+}
 
 const BACKEND_URL: &str = "http://127.0.0.1:8000";
 
@@ -10,6 +20,16 @@ pub struct IngestResponse {
     pub n_pages: u32,
     pub n_spans: u32,
     pub ingest: serde_json::Value,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct VectorizeResponse {
+    pub doc_id: String,
+    pub n_embedded: u32,
+    pub n_skipped: Option<u32>,
+    pub model: String,
+    pub dim: Option<u32>,
+    pub was_cached: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -56,6 +76,8 @@ pub enum MetisError {
     BackendUnavailable(String),
     #[error("Ingest failed: {0}")]
     IngestFailed(String),
+    #[error("Vectorize failed: {0}")]
+    VectorizeFailed(String),
     #[error("LLM error: {0}")]
     LlmError(String),
 }
@@ -109,6 +131,31 @@ async fn ingest_pdf(file_path: String) -> Result<IngestResponse, MetisError> {
     resp.json::<IngestResponse>()
         .await
         .map_err(|e| MetisError::IngestFailed(e.to_string()))
+}
+
+#[tauri::command]
+async fn vectorize_doc(doc_id: String) -> Result<VectorizeResponse, MetisError> {
+    let body = serde_json::json!({ "doc_id": doc_id });
+
+    let resp = reqwest::Client::new()
+        .post(format!("{BACKEND_URL}/vectorize"))
+        .json(&body)
+        .send()
+        .await
+        .map_err(map_reqwest_err)?;
+
+    if resp.status() == 404 {
+        return Err(MetisError::NotFound(resp.text().await.unwrap_or_default()));
+    }
+    if !resp.status().is_success() {
+        return Err(MetisError::VectorizeFailed(
+            resp.text().await.unwrap_or_default(),
+        ));
+    }
+
+    resp.json::<VectorizeResponse>()
+        .await
+        .map_err(|e| MetisError::VectorizeFailed(e.to_string()))
 }
 
 #[tauri::command]
@@ -294,15 +341,74 @@ async fn chat_start(
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
+        .setup(|app| {
+            let (mut rx, child) = app
+                .shell()
+                .sidecar("metis-web")
+                .expect("failed to create metis-web sidecar command")
+                .spawn()
+                .expect("failed to spawn metis-web sidecar");
+
+            let pid = child.pid();
+            app.manage(SidecarHandle {
+                child: Mutex::new(Some(child)),
+                pid,
+            });
+
+            tauri::async_runtime::spawn(async move {
+                while let Some(event) = rx.recv().await {
+                    match event {
+                        CommandEvent::Stdout(line) => {
+                            print!("[metis-web] {}", String::from_utf8_lossy(&line));
+                        }
+                        CommandEvent::Stderr(line) => {
+                            eprint!("[metis-web] {}", String::from_utf8_lossy(&line));
+                        }
+                        CommandEvent::Terminated(status) => {
+                            eprint!("[metis-web] terminated: {:?}", status);
+                            break;
+                        }
+                        _ => {}
+                    }
+                }
+            });
+
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             ingest_pdf,
+            vectorize_doc,
             retrieve_evidence,
             get_document_pdf_url,
             chat_start,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building Tauri application")
+        .run(|app, event| {
+            if let tauri::RunEvent::Exit = event {
+                let state = app.state::<SidecarHandle>();
+
+                #[cfg(unix)]
+                let _ = std::process::Command::new("kill")
+                    .args(["-15", &state.pid.to_string()])
+                    .status();
+
+                #[cfg(windows)]
+                let _ = std::process::Command::new("taskkill")
+                    .args(["/F", "/T", "/PID", &state.pid.to_string()])
+                    .status();
+
+                // Wait a little, then send SIGKILL to ensure process is dead
+                std::thread::sleep(std::time::Duration::from_millis(500));
+                if let Ok(mut guard) = state.child.lock() {
+                    if let Some(child) = guard.take() {
+                        let _ = child.kill();
+                    }
+                };
+            }
+        });
 }

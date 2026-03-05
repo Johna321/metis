@@ -7,7 +7,9 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "setup:sidecar": "bun scripts/setup-sidecar-dev.ts",
+    "build:sidecar": "bun scripts/build-sidecar.ts"
   },
   "dependencies": {
     "@react-pdf/renderer": "^4.3.2",
@@ -15,6 +17,7 @@
     "@tauri-apps/plugin-dialog": "~2",
     "@tauri-apps/plugin-fs": "~2",
     "@tauri-apps/plugin-opener": "^2",
+    "@tauri-apps/plugin-shell": "~2",
     "pdfjs-dist": "5.4.296",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",

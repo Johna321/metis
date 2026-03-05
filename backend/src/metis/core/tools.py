@@ -33,7 +33,10 @@ class ToolRegistry:
         if name not in self._tools:
             return json.dumps({"error": f"Unknown tool: {name}"})
         _, fn = self._tools[name]
-        return fn(**arguments)
+        try:
+            return fn(**arguments)
+        except Exception as exc:
+            return json.dumps({"error": f"{type(exc).__name__}: {exc}"})
 
 
 def make_rag_retrieve_tool(doc_id: str) -> tuple[ToolDef, Callable[..., str]]:

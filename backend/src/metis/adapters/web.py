@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import queue
@@ -81,6 +82,7 @@ class VectorizeResponse(BaseModel):
     n_skipped: Optional[int] = None
     model: str
     dim: Optional[int] = None
+    was_cached: bool = False
 
 
 class SemanticRetrieveRequest(BaseModel):
@@ -158,7 +160,8 @@ async def ingest_endpoint(
     pdf_bytes = await file.read()
     source_filename = file.filename or None
     if engine == Engine.layout:
-        meta = ingest_pdf_bytes_layout(
+        meta = await asyncio.to_thread(
+            ingest_pdf_bytes_layout,
             pdf_bytes,
             extract_words=extract_words,
             write_images=write_images,
@@ -166,12 +169,12 @@ async def ingest_endpoint(
             source_filename=source_filename,
         )
     else:
-        meta = ingest_pdf_bytes(pdf_bytes, source_filename=source_filename)
+        meta = await asyncio.to_thread(ingest_pdf_bytes, pdf_bytes, source_filename=source_filename)
     return meta
 
 
 @app.post("/retrieve", response_model=List[EvidenceItem])
-async def retrieve_endpoint(req: RetrieveRequest):
+def retrieve_endpoint(req: RetrieveRequest):
     p = paths(req.doc_id)
     if not p["spans"].exists():
         raise HTTPException(status_code=404, detail=f"Document not found: {req.doc_id}")
@@ -209,7 +212,7 @@ def retrieve_semantic_endpoint(req: SemanticRetrieveRequest):
 
 
 @app.get("/documents/{doc_id}")
-async def get_document(doc_id: str):
+def get_document(doc_id: str):
     p = paths(doc_id)
     if not p["doc"].exists():
         raise HTTPException(status_code=404, detail=f"Document not found: {doc_id}")

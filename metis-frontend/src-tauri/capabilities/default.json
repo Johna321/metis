@@ -10,6 +10,9 @@
     "opener:default",
     "dialog:default",
     "fs:default",
-    "core:event:default"
+    "core:event:default",
+    "shell:default",
+    "shell:allow-spawn",
+    "shell:allow-kill"
   ]
 }
