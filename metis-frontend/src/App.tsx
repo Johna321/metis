@@ -40,6 +40,7 @@ interface PageProxy {
 type ChatMessage = {
   role: "user" | "assistant";
   content: string;
+  evidence?: EvidenceItem[];
 };
 
 function App() {
@@ -234,6 +235,15 @@ function App() {
         });
         console.log(delta);
       },
+      onCitationData: (items) => {
+        setMessages(prev => {
+          const updated = [...prev];
+          const last = updated[updated.length - 1];
+          const merged = [...(last.evidence ?? []), ...items];
+          updated[updated.length - 1] = { ...last, evidence: merged };
+          return updated;
+        });
+      },
       onAgentDone: () => {
         setIsStreaming(false);
         unlistenRef.current?.();
@@ -347,6 +357,17 @@ function App() {
             {messages.map((msg, i) => (
               <div key={i} className={`chat-bubble chat-bubble--${msg.role}`}>
                 {msg.content}
+                {msg.evidence && msg.evidence.length > 0 && (
+                  <div className="citation-list">
+                    {msg.evidence.map((ev, j) => (
+                      <div key={j} className="citation-item" title={ev.text}>
+                        <span className="citation-page">p.{ev.page + 1}</span>
+                        <span className="citation-score">{(ev.score * 100).toFixed(0)}%</span>
+                        <span className="citation-text">{ev.text.slice(0, 80)}{ev.text.length > 80 ? "…" : ""}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             ))}
             <div ref={messagesEndRef} />

@@ -16,10 +16,11 @@ class ToolDef:
 
 @dataclass(frozen=True)
 class StreamEvent:
-    kind: str  # "text_delta" | "tool_call_start" | "tool_call_delta" | "tool_call_done" | "message_done" | "agent_done"
+    kind: str  # "text_delta" | "tool_call_start" | "tool_call_delta" | "tool_call_done" | "message_done" | "agent_done" | "citation_data"
     text: str | None = None
     tool_call: ToolCall | None = None
     message: Message | None = None
+    evidence: list[dict] | None = None
 
 
 class ChatModel(Protocol):

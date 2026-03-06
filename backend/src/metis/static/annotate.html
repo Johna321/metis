@@ -1,0 +1,705 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Metis Annotation Tool</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #1a1a2e; color: #e0e0e0; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+/* Toolbar */
+.toolbar { display: flex; align-items: center; gap: 12px; padding: 8px 16px; background: #16213e; border-bottom: 1px solid #0f3460; flex-shrink: 0; }
+.toolbar h1 { font-size: 16px; font-weight: 600; color: #e94560; margin-right: 8px; }
+.toolbar button { padding: 5px 12px; border: 1px solid #0f3460; border-radius: 4px; background: #16213e; color: #e0e0e0; cursor: pointer; font-size: 13px; }
+.toolbar button:hover { background: #0f3460; }
+.toolbar button.active { background: #e94560; border-color: #e94560; color: #fff; }
+.toolbar .spacer { flex: 1; }
+.toolbar .progress-text { font-size: 12px; color: #aaa; }
+.page-nav { display: flex; align-items: center; gap: 6px; }
+.page-nav input { width: 50px; text-align: center; background: #0f3460; border: 1px solid #333; color: #e0e0e0; border-radius: 3px; padding: 4px; }
+
+/* Main layout */
+.main { display: flex; flex: 1; overflow: hidden; }
+
+/* Canvas area */
+.canvas-area { flex: 1; position: relative; overflow: auto; background: #111; display: flex; justify-content: center; align-items: flex-start; padding: 20px; }
+.canvas-container { position: relative; display: inline-block; }
+.canvas-container img { display: block; max-width: 100%; height: auto; user-select: none; -webkit-user-drag: none; }
+.canvas-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; cursor: crosshair; }
+
+/* Bbox overlays */
+.bbox { position: absolute; border: 2px solid; cursor: pointer; transition: opacity 0.1s; }
+.bbox:hover { opacity: 1 !important; }
+.bbox.status-pending { border-color: #f0ad4e; background: rgba(240, 173, 78, 0.08); }
+.bbox.status-accepted { border-color: #5cb85c; background: rgba(92, 184, 92, 0.08); }
+.bbox.status-rejected { border-color: #d9534f; background: rgba(217, 83, 79, 0.08); }
+.bbox.selected { border-width: 3px; box-shadow: 0 0 8px rgba(233, 69, 96, 0.6); }
+.bbox .label { position: absolute; top: -16px; left: 0; font-size: 10px; padding: 1px 4px; border-radius: 2px; white-space: nowrap; pointer-events: none; }
+.bbox.status-pending .label { background: #f0ad4e; color: #000; }
+.bbox.status-accepted .label { background: #5cb85c; color: #000; }
+.bbox.status-rejected .label { background: #d9534f; color: #fff; }
+.bbox .group-dot { position: absolute; top: -6px; right: -6px; width: 10px; height: 10px; border-radius: 50%; border: 1px solid #fff; }
+.bbox .resize-handle { position: absolute; width: 8px; height: 8px; background: #e94560; border: 1px solid #fff; }
+.bbox .resize-handle.nw { top: -4px; left: -4px; cursor: nw-resize; }
+.bbox .resize-handle.ne { top: -4px; right: -4px; cursor: ne-resize; }
+.bbox .resize-handle.sw { bottom: -4px; left: -4px; cursor: sw-resize; }
+.bbox .resize-handle.se { bottom: -4px; right: -4px; cursor: se-resize; }
+
+/* Drawing rect */
+.draw-rect { position: absolute; border: 2px dashed #e94560; background: rgba(233, 69, 96, 0.1); pointer-events: none; }
+
+/* Sidebar */
+.sidebar { width: 320px; background: #16213e; border-left: 1px solid #0f3460; display: flex; flex-direction: column; flex-shrink: 0; overflow: hidden; }
+.sidebar-header { padding: 10px 12px; border-bottom: 1px solid #0f3460; font-weight: 600; font-size: 14px; display: flex; justify-content: space-between; }
+.sidebar-filter { padding: 6px 12px; border-bottom: 1px solid #0f3460; display: flex; gap: 6px; flex-wrap: wrap; }
+.sidebar-filter button { font-size: 11px; padding: 2px 8px; border: 1px solid #333; border-radius: 3px; background: transparent; color: #aaa; cursor: pointer; }
+.sidebar-filter button.active { background: #0f3460; color: #fff; border-color: #e94560; }
+.span-list { flex: 1; overflow-y: auto; padding: 4px 0; }
+.span-item { padding: 8px 12px; border-bottom: 1px solid #0f3460; cursor: pointer; font-size: 12px; }
+.span-item:hover { background: rgba(233, 69, 96, 0.1); }
+.span-item.selected { background: rgba(233, 69, 96, 0.2); border-left: 3px solid #e94560; }
+.span-item .span-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px; }
+.span-item .span-kind { padding: 1px 6px; border-radius: 3px; font-size: 10px; font-weight: 600; }
+.span-item .span-text { color: #888; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 280px; }
+.span-item .span-status { font-size: 10px; }
+
+/* Detail panel */
+.detail-panel { border-top: 1px solid #0f3460; padding: 12px; flex-shrink: 0; }
+.detail-panel h3 { font-size: 13px; margin-bottom: 8px; }
+.detail-panel .field { margin-bottom: 6px; display: flex; align-items: center; gap: 6px; }
+.detail-panel .field label { font-size: 11px; color: #aaa; width: 50px; flex-shrink: 0; }
+.detail-panel select, .detail-panel input[type="text"] { padding: 3px 6px; background: #0f3460; border: 1px solid #333; color: #e0e0e0; border-radius: 3px; font-size: 12px; flex: 1; }
+.detail-panel .actions { display: flex; gap: 6px; margin-top: 8px; }
+.detail-panel .actions button { flex: 1; padding: 5px; font-size: 12px; border-radius: 4px; border: none; cursor: pointer; font-weight: 600; }
+.btn-accept { background: #5cb85c; color: #fff; }
+.btn-reject { background: #d9534f; color: #fff; }
+.btn-delete { background: #333; color: #aaa; }
+
+/* Toast */
+.toast { position: fixed; bottom: 20px; right: 20px; padding: 10px 20px; border-radius: 6px; font-size: 13px; z-index: 1000; animation: fadeIn 0.2s; }
+.toast.success { background: #2d5a2d; color: #5cb85c; }
+.toast.error { background: #5a2d2d; color: #d9534f; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+/* Kind colors */
+.kind-text { background: #2d4a6d; color: #8db8e0; }
+.kind-table { background: #6d4a2d; color: #e0b88d; }
+.kind-picture { background: #2d2d6d; color: #8d8de0; }
+.kind-graphic { background: #4a2d6d; color: #b88de0; }
+.kind-equation { background: #2d6d4a; color: #8de0b8; }
+.kind-caption { background: #6d6d2d; color: #e0e08d; }
+.kind-figure-caption { background: #6d6d2d; color: #e0e08d; }
+.kind-section-header { background: #6d2d4a; color: #e08db8; }
+.kind-page-header { background: #4a4a4a; color: #bbb; }
+.kind-page-footer { background: #4a4a4a; color: #bbb; }
+.kind-reference { background: #2d6d6d; color: #8de0e0; }
+.kind-unknown { background: #4a4a4a; color: #bbb; }
+
+/* Keyboard help */
+.kb-help { position: fixed; bottom: 60px; right: 20px; background: #16213e; border: 1px solid #0f3460; border-radius: 6px; padding: 12px; font-size: 11px; line-height: 1.8; display: none; z-index: 100; }
+.kb-help kbd { background: #0f3460; padding: 1px 5px; border-radius: 3px; border: 1px solid #333; }
+</style>
+</head>
+<body>
+
+<div class="toolbar">
+  <h1>Metis Annotator</h1>
+  <div class="page-nav">
+    <button id="prevPage">&larr;</button>
+    <span>Page <input id="pageInput" type="number" min="0" value="0"> / <span id="pageCount">?</span></span>
+    <button id="nextPage">&rarr;</button>
+  </div>
+  <div class="spacer"></div>
+  <button id="modeSelect" class="active" title="Select mode (S)">Select</button>
+  <button id="modeDraw" title="Draw mode (D)">Draw</button>
+  <button id="modeLink" title="Link mode (G)">Link</button>
+  <button id="btnHelp" title="Keyboard shortcuts (?)">?</button>
+  <div class="spacer"></div>
+  <span id="progressText" class="progress-text"></span>
+  <button id="btnExport" title="Export accepted spans to .gold.json">Export Gold</button>
+</div>
+
+<div class="main">
+  <div class="canvas-area" id="canvasArea">
+    <div class="canvas-container" id="canvasContainer">
+      <img id="pageImage" alt="PDF page">
+      <div class="canvas-overlay" id="overlay"></div>
+    </div>
+  </div>
+  <div class="sidebar">
+    <div class="sidebar-header">
+      <span>Spans</span>
+      <span id="spanCount"></span>
+    </div>
+    <div class="sidebar-filter">
+      <button class="filter-btn active" data-filter="all">All</button>
+      <button class="filter-btn" data-filter="pending">Pending</button>
+      <button class="filter-btn" data-filter="accepted">Accepted</button>
+      <button class="filter-btn" data-filter="rejected">Rejected</button>
+    </div>
+    <div class="span-list" id="spanList"></div>
+    <div class="detail-panel" id="detailPanel" style="display:none;">
+      <h3>Span Details</h3>
+      <div class="field"><label>Kind</label>
+        <select id="detailKind">
+          <option value="text">text</option>
+          <option value="table">table</option>
+          <option value="picture">picture</option>
+          <option value="graphic">graphic</option>
+          <option value="equation">equation</option>
+          <option value="caption">caption</option>
+          <option value="figure-caption">figure-caption</option>
+          <option value="section-header">section-header</option>
+          <option value="page-header">page-header</option>
+          <option value="page-footer">page-footer</option>
+          <option value="reference">reference</option>
+          <option value="unknown">unknown</option>
+        </select>
+      </div>
+      <div class="field"><label>Order</label><input type="text" id="detailOrder"></div>
+      <div class="field"><label>Group</label><input type="text" id="detailGroup" placeholder="none"></div>
+      <div class="field"><label>Source</label><span id="detailProvenance" style="font-size:11px;color:#888;"></span></div>
+      <div class="actions">
+        <button class="btn-accept" id="btnAccept" title="Accept (A)">Accept</button>
+        <button class="btn-reject" id="btnReject" title="Reject (R)">Reject</button>
+        <button class="btn-delete" id="btnDelete" title="Delete (X)">Delete</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="kb-help" id="kbHelp">
+  <div><kbd>A</kbd> Accept selected</div>
+  <div><kbd>R</kbd> Reject selected</div>
+  <div><kbd>X</kbd> Delete selected</div>
+  <div><kbd>S</kbd> Select mode</div>
+  <div><kbd>D</kbd> Draw mode</div>
+  <div><kbd>G</kbd> Group selected (link mode)</div>
+  <div><kbd>U</kbd> Ungroup selected</div>
+  <div><kbd>&larr;</kbd><kbd>&rarr;</kbd> Prev/Next page</div>
+  <div><kbd>Tab</kbd> Next span</div>
+  <div><kbd>?</kbd> Toggle help</div>
+</div>
+
+<script>
+const API = '';
+const KINDS = ['text','table','picture','graphic','equation','caption','figure-caption','section-header','page-header','page-footer','reference','unknown'];
+const GROUP_COLORS = ['#e94560','#00b4d8','#06d6a0','#ffd166','#ef476f','#118ab2','#8338ec','#ff6b6b','#48bfe3','#72efdd'];
+
+let state = {
+  docId: null,
+  pageCount: 0,
+  currentPage: 0,
+  spans: [],
+  selected: [],  // ann_ids
+  mode: 'select', // select | draw | link
+  filter: 'all',
+  drawing: false,
+  drawStart: null,
+  resizing: null,
+  imgW: 0,
+  imgH: 0,
+};
+
+// --- Init ---
+async function init() {
+  const meta = await api('/api/doc');
+  state.docId = meta.doc_id;
+  state.pageCount = meta.page_count;
+  document.getElementById('pageCount').textContent = meta.page_count - 1;
+  document.getElementById('pageInput').max = meta.page_count - 1;
+  loadPage(0);
+  updateProgress();
+}
+
+// --- API helpers ---
+async function api(path, opts = {}) {
+  const res = await fetch(API + path, {
+    headers: { 'Content-Type': 'application/json' },
+    ...opts,
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`API ${res.status}: ${text}`);
+  }
+  return res.json();
+}
+
+function toast(msg, type = 'success') {
+  const el = document.createElement('div');
+  el.className = `toast ${type}`;
+  el.textContent = msg;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 2500);
+}
+
+// --- Page loading ---
+async function loadPage(n) {
+  if (n < 0 || n >= state.pageCount) return;
+  state.currentPage = n;
+  state.selected = [];
+  document.getElementById('pageInput').value = n;
+  const img = document.getElementById('pageImage');
+  img.src = `${API}/api/page/${n}/image`;
+  await new Promise(r => { img.onload = r; });
+  state.imgW = img.naturalWidth;
+  state.imgH = img.naturalHeight;
+  await loadSpans();
+}
+
+async function loadSpans() {
+  state.spans = await api(`/api/page/${state.currentPage}/spans`);
+  renderBboxes();
+  renderSpanList();
+  updateDetailPanel();
+}
+
+// --- Bbox rendering ---
+function renderBboxes() {
+  const overlay = document.getElementById('overlay');
+  // Remove old bboxes
+  overlay.querySelectorAll('.bbox').forEach(el => el.remove());
+
+  const container = document.getElementById('canvasContainer');
+  const displayW = container.offsetWidth;
+  const displayH = container.offsetHeight;
+
+  const groupIds = [...new Set(state.spans.map(s => s.group_id).filter(Boolean))];
+
+  for (const span of filteredSpans()) {
+    const el = document.createElement('div');
+    el.className = `bbox status-${span.status}`;
+    if (state.selected.includes(span.ann_id)) el.classList.add('selected');
+    el.dataset.annId = span.ann_id;
+
+    const [x0, y0, x1, y1] = span.bbox_norm;
+    el.style.left = (x0 * 100) + '%';
+    el.style.top = (y0 * 100) + '%';
+    el.style.width = ((x1 - x0) * 100) + '%';
+    el.style.height = ((y1 - y0) * 100) + '%';
+
+    // Label
+    const label = document.createElement('span');
+    label.className = 'label';
+    label.textContent = `${span.kind} #${span.reading_order}`;
+    el.appendChild(label);
+
+    // Group dot
+    if (span.group_id) {
+      const dot = document.createElement('span');
+      dot.className = 'group-dot';
+      dot.style.background = GROUP_COLORS[groupIds.indexOf(span.group_id) % GROUP_COLORS.length];
+      dot.title = span.group_id;
+      el.appendChild(dot);
+    }
+
+    // Resize handles (only when selected)
+    if (state.selected.includes(span.ann_id)) {
+      for (const corner of ['nw','ne','sw','se']) {
+        const h = document.createElement('div');
+        h.className = `resize-handle ${corner}`;
+        h.dataset.corner = corner;
+        h.dataset.annId = span.ann_id;
+        el.appendChild(h);
+      }
+    }
+
+    el.addEventListener('mousedown', (e) => {
+      if (e.target.classList.contains('resize-handle')) {
+        startResize(e, span.ann_id, e.target.dataset.corner);
+        return;
+      }
+      e.stopPropagation();
+      selectSpan(span.ann_id, e.ctrlKey || e.metaKey || state.mode === 'link');
+    });
+
+    overlay.appendChild(el);
+  }
+}
+
+function filteredSpans() {
+  if (state.filter === 'all') return state.spans;
+  return state.spans.filter(s => s.status === state.filter);
+}
+
+// --- Span list sidebar ---
+function renderSpanList() {
+  const list = document.getElementById('spanList');
+  list.innerHTML = '';
+  const spans = filteredSpans();
+  document.getElementById('spanCount').textContent = spans.length;
+
+  for (const span of spans) {
+    const el = document.createElement('div');
+    el.className = 'span-item' + (state.selected.includes(span.ann_id) ? ' selected' : '');
+    el.dataset.annId = span.ann_id;
+
+    const kindClass = `kind-${span.kind || 'unknown'}`;
+    const statusIcon = span.status === 'accepted' ? '&#10003;' : span.status === 'rejected' ? '&#10007;' : '&#9679;';
+    el.innerHTML = `
+      <div class="span-header">
+        <span class="span-kind ${kindClass}">${span.kind || 'unknown'}</span>
+        <span class="span-status status-${span.status}">${statusIcon} ${span.status}</span>
+      </div>
+      <div class="span-text">${escapeHtml(span.text || '(no text)')}</div>
+    `;
+    el.addEventListener('click', () => selectSpan(span.ann_id, false));
+    list.appendChild(el);
+  }
+}
+
+function escapeHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// --- Selection ---
+function selectSpan(annId, multi = false) {
+  if (multi) {
+    const idx = state.selected.indexOf(annId);
+    if (idx >= 0) state.selected.splice(idx, 1);
+    else state.selected.push(annId);
+  } else {
+    state.selected = [annId];
+  }
+  renderBboxes();
+  renderSpanList();
+  updateDetailPanel();
+  // Scroll sidebar item into view
+  const item = document.querySelector(`.span-item[data-ann-id="${annId}"]`);
+  if (item) item.scrollIntoView({ block: 'nearest' });
+}
+
+function selectNext(dir = 1) {
+  const spans = filteredSpans();
+  if (!spans.length) return;
+  if (!state.selected.length) {
+    selectSpan(spans[0].ann_id);
+    return;
+  }
+  const curIdx = spans.findIndex(s => s.ann_id === state.selected[0]);
+  const next = (curIdx + dir + spans.length) % spans.length;
+  selectSpan(spans[next].ann_id);
+}
+
+// --- Detail panel ---
+function updateDetailPanel() {
+  const panel = document.getElementById('detailPanel');
+  if (state.selected.length !== 1) {
+    panel.style.display = state.selected.length > 1 ? 'block' : 'none';
+    if (state.selected.length > 1) {
+      panel.querySelector('h3').textContent = `${state.selected.length} spans selected`;
+    }
+    return;
+  }
+  panel.style.display = 'block';
+  const span = state.spans.find(s => s.ann_id === state.selected[0]);
+  if (!span) { panel.style.display = 'none'; return; }
+  panel.querySelector('h3').textContent = span.ann_id;
+  document.getElementById('detailKind').value = span.kind || 'text';
+  document.getElementById('detailOrder').value = span.reading_order;
+  document.getElementById('detailGroup').value = span.group_id || '';
+  document.getElementById('detailProvenance').textContent = span.provenance || '';
+}
+
+// --- Span mutations ---
+async function updateSpan(annId, updates) {
+  try {
+    const updated = await api(`/api/span/${annId}`, {
+      method: 'PUT',
+      body: JSON.stringify(updates),
+    });
+    const idx = state.spans.findIndex(s => s.ann_id === annId);
+    if (idx >= 0) state.spans[idx] = updated;
+    renderBboxes();
+    renderSpanList();
+    updateDetailPanel();
+    updateProgress();
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+}
+
+async function deleteSpan(annId) {
+  try {
+    await api(`/api/span/${annId}`, { method: 'DELETE' });
+    state.spans = state.spans.filter(s => s.ann_id !== annId);
+    state.selected = state.selected.filter(id => id !== annId);
+    renderBboxes();
+    renderSpanList();
+    updateDetailPanel();
+    updateProgress();
+    toast('Span deleted');
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+}
+
+async function acceptSelected() {
+  for (const id of [...state.selected]) await updateSpan(id, { status: 'accepted' });
+  toast(`${state.selected.length} span(s) accepted`);
+}
+
+async function rejectSelected() {
+  for (const id of [...state.selected]) await updateSpan(id, { status: 'rejected' });
+  toast(`${state.selected.length} span(s) rejected`);
+}
+
+async function deleteSelected() {
+  for (const id of [...state.selected]) await deleteSpan(id);
+}
+
+// --- Drawing ---
+function startDraw(e) {
+  const rect = document.getElementById('overlay').getBoundingClientRect();
+  state.drawing = true;
+  state.drawStart = { x: (e.clientX - rect.left) / rect.width, y: (e.clientY - rect.top) / rect.height };
+  const drawRect = document.createElement('div');
+  drawRect.className = 'draw-rect';
+  drawRect.id = 'drawRect';
+  document.getElementById('overlay').appendChild(drawRect);
+}
+
+function moveDraw(e) {
+  if (!state.drawing) return;
+  const rect = document.getElementById('overlay').getBoundingClientRect();
+  const cur = { x: (e.clientX - rect.left) / rect.width, y: (e.clientY - rect.top) / rect.height };
+  const x0 = Math.min(state.drawStart.x, cur.x);
+  const y0 = Math.min(state.drawStart.y, cur.y);
+  const x1 = Math.max(state.drawStart.x, cur.x);
+  const y1 = Math.max(state.drawStart.y, cur.y);
+  const el = document.getElementById('drawRect');
+  if (el) {
+    el.style.left = (x0 * 100) + '%';
+    el.style.top = (y0 * 100) + '%';
+    el.style.width = ((x1 - x0) * 100) + '%';
+    el.style.height = ((y1 - y0) * 100) + '%';
+  }
+}
+
+async function endDraw(e) {
+  if (!state.drawing) return;
+  state.drawing = false;
+  const el = document.getElementById('drawRect');
+  if (el) el.remove();
+
+  const rect = document.getElementById('overlay').getBoundingClientRect();
+  const cur = { x: (e.clientX - rect.left) / rect.width, y: (e.clientY - rect.top) / rect.height };
+  const x0 = Math.min(state.drawStart.x, cur.x);
+  const y0 = Math.min(state.drawStart.y, cur.y);
+  const x1 = Math.max(state.drawStart.x, cur.x);
+  const y1 = Math.max(state.drawStart.y, cur.y);
+
+  // Ignore tiny rects (accidental clicks)
+  if ((x1 - x0) < 0.005 || (y1 - y0) < 0.005) return;
+
+  const kind = prompt('Label for new span:', 'text');
+  if (!kind) return;
+
+  // Compute approximate pdf coords (we don't know exact page dimensions, use image dims)
+  const bboxNorm = [x0, y0, x1, y1];
+  // We don't have exact PDF dimensions, store zeros for bbox_pdf (user can compute later)
+  const bboxPdf = [0, 0, 0, 0];
+
+  try {
+    const maxOrder = state.spans.length ? Math.max(...state.spans.map(s => s.reading_order)) + 1 : 0;
+    const created = await api('/api/span', {
+      method: 'POST',
+      body: JSON.stringify({
+        page: state.currentPage,
+        bbox_norm: bboxNorm,
+        bbox_pdf: bboxPdf,
+        kind: kind,
+        reading_order: maxOrder,
+      }),
+    });
+    state.spans.push(created);
+    selectSpan(created.ann_id);
+    toast('Span created');
+    updateProgress();
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+}
+
+// --- Resize ---
+function startResize(e, annId, corner) {
+  e.stopPropagation();
+  e.preventDefault();
+  const span = state.spans.find(s => s.ann_id === annId);
+  if (!span) return;
+  state.resizing = { annId, corner, origBbox: [...span.bbox_norm] };
+}
+
+function moveResize(e) {
+  if (!state.resizing) return;
+  const rect = document.getElementById('overlay').getBoundingClientRect();
+  const mx = (e.clientX - rect.left) / rect.width;
+  const my = (e.clientY - rect.top) / rect.height;
+  const span = state.spans.find(s => s.ann_id === state.resizing.annId);
+  if (!span) return;
+
+  const bbox = [...span.bbox_norm];
+  const c = state.resizing.corner;
+  if (c.includes('w')) bbox[0] = Math.min(mx, bbox[2] - 0.001);
+  if (c.includes('n')) bbox[1] = Math.min(my, bbox[3] - 0.001);
+  if (c.includes('e')) bbox[2] = Math.max(mx, bbox[0] + 0.001);
+  if (c.includes('s')) bbox[3] = Math.max(my, bbox[1] + 0.001);
+  span.bbox_norm = bbox;
+  renderBboxes();
+}
+
+async function endResize() {
+  if (!state.resizing) return;
+  const span = state.spans.find(s => s.ann_id === state.resizing.annId);
+  if (span) {
+    await updateSpan(span.ann_id, { bbox_norm: span.bbox_norm });
+  }
+  state.resizing = null;
+}
+
+// --- Grouping ---
+async function groupSelected() {
+  if (state.selected.length < 2) { toast('Select 2+ spans to group', 'error'); return; }
+  try {
+    const result = await api('/api/group', {
+      method: 'POST',
+      body: JSON.stringify({ ann_ids: state.selected }),
+    });
+    toast(`Grouped ${result.linked} spans as ${result.group_id}`);
+    await loadSpans();
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+}
+
+async function ungroupSelected() {
+  const span = state.spans.find(s => s.ann_id === state.selected[0]);
+  if (!span || !span.group_id) { toast('No group to remove', 'error'); return; }
+  try {
+    await api(`/api/group/${span.group_id}`, { method: 'DELETE' });
+    toast('Group removed');
+    await loadSpans();
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+}
+
+// --- Progress ---
+async function updateProgress() {
+  try {
+    const prog = await api('/api/progress');
+    const t = prog.total;
+    const total = t.accepted + t.pending + t.rejected;
+    document.getElementById('progressText').textContent =
+      `${t.accepted}/${total} accepted | ${t.pending} pending | ${t.rejected} rejected`;
+  } catch (e) {}
+}
+
+// --- Export ---
+async function exportGold() {
+  try {
+    const result = await api('/api/export', { method: 'POST' });
+    toast(`Exported ${result.n_accepted} spans to ${result.path}`);
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+}
+
+// --- Event wiring ---
+document.getElementById('prevPage').addEventListener('click', () => loadPage(state.currentPage - 1));
+document.getElementById('nextPage').addEventListener('click', () => loadPage(state.currentPage + 1));
+document.getElementById('pageInput').addEventListener('change', (e) => loadPage(parseInt(e.target.value) || 0));
+document.getElementById('btnExport').addEventListener('click', exportGold);
+
+// Mode buttons
+document.getElementById('modeSelect').addEventListener('click', () => setMode('select'));
+document.getElementById('modeDraw').addEventListener('click', () => setMode('draw'));
+document.getElementById('modeLink').addEventListener('click', () => setMode('link'));
+
+function setMode(m) {
+  state.mode = m;
+  document.querySelectorAll('#modeSelect,#modeDraw,#modeLink').forEach(b => b.classList.remove('active'));
+  document.getElementById(m === 'select' ? 'modeSelect' : m === 'draw' ? 'modeDraw' : 'modeLink').classList.add('active');
+  document.getElementById('overlay').style.cursor = m === 'draw' ? 'crosshair' : 'default';
+}
+
+// Filter buttons
+document.querySelectorAll('.filter-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    state.filter = btn.dataset.filter;
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    renderBboxes();
+    renderSpanList();
+  });
+});
+
+// Detail panel changes
+document.getElementById('detailKind').addEventListener('change', (e) => {
+  if (state.selected.length === 1) updateSpan(state.selected[0], { kind: e.target.value });
+});
+document.getElementById('detailOrder').addEventListener('change', (e) => {
+  if (state.selected.length === 1) updateSpan(state.selected[0], { reading_order: parseInt(e.target.value) || 0 });
+});
+document.getElementById('detailGroup').addEventListener('change', (e) => {
+  if (state.selected.length === 1) updateSpan(state.selected[0], { group_id: e.target.value || null });
+});
+
+// Action buttons
+document.getElementById('btnAccept').addEventListener('click', acceptSelected);
+document.getElementById('btnReject').addEventListener('click', rejectSelected);
+document.getElementById('btnDelete').addEventListener('click', deleteSelected);
+
+// Canvas overlay events
+const overlay = document.getElementById('overlay');
+overlay.addEventListener('mousedown', (e) => {
+  if (e.target === overlay) {
+    if (state.mode === 'draw') startDraw(e);
+    else { state.selected = []; renderBboxes(); renderSpanList(); updateDetailPanel(); }
+  }
+});
+document.addEventListener('mousemove', (e) => {
+  if (state.drawing) moveDraw(e);
+  if (state.resizing) moveResize(e);
+});
+document.addEventListener('mouseup', (e) => {
+  if (state.drawing) endDraw(e);
+  if (state.resizing) endResize();
+});
+
+// Keyboard shortcuts
+document.addEventListener('keydown', (e) => {
+  // Don't capture when typing in inputs
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA') return;
+
+  switch (e.key) {
+    case 'a': case 'A': acceptSelected(); break;
+    case 'r': case 'R': rejectSelected(); break;
+    case 'x': case 'X': deleteSelected(); break;
+    case 's': case 'S': setMode('select'); break;
+    case 'd': case 'D': setMode('draw'); break;
+    case 'g': case 'G': if (state.mode === 'link' || state.selected.length > 1) groupSelected(); else setMode('link'); break;
+    case 'u': case 'U': ungroupSelected(); break;
+    case 'ArrowLeft': e.preventDefault(); loadPage(state.currentPage - 1); break;
+    case 'ArrowRight': e.preventDefault(); loadPage(state.currentPage + 1); break;
+    case 'Tab': e.preventDefault(); selectNext(e.shiftKey ? -1 : 1); break;
+    case '?': {
+      const help = document.getElementById('kbHelp');
+      help.style.display = help.style.display === 'none' ? 'block' : 'none';
+      break;
+    }
+  }
+});
+
+// Help toggle
+document.getElementById('btnHelp').addEventListener('click', () => {
+  const help = document.getElementById('kbHelp');
+  help.style.display = help.style.display === 'none' ? 'block' : 'none';
+});
+
+// Start
+init();
+</script>
+</body>
+</html>

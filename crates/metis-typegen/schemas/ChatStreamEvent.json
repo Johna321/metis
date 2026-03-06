@@ -108,6 +108,27 @@
     {
       "type": "object",
       "required": [
+        "items",
+        "kind"
+      ],
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/EvidenceItem"
+          }
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "CitationData"
+          ]
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
         "kind"
       ],
       "properties": {
@@ -137,5 +158,43 @@
         }
       }
     }
-  ]
+  ],
+  "definitions": {
+    "EvidenceItem": {
+      "type": "object",
+      "required": [
+        "bbox_norm",
+        "page",
+        "score",
+        "span_id",
+        "text"
+      ],
+      "properties": {
+        "bbox_norm": {
+          "type": "array",
+          "items": {
+            "type": "number",
+            "format": "double"
+          },
+          "maxItems": 4,
+          "minItems": 4
+        },
+        "page": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0.0
+        },
+        "score": {
+          "type": "number",
+          "format": "double"
+        },
+        "span_id": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        }
+      }
+    }
+  }
 }

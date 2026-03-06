@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from typing import Callable
 
 from .schema import Message, ToolResult
@@ -43,6 +44,14 @@ def run_agent(
             result_str = tools.call(tc.name, tc.arguments)
             if on_tool_result is not None:
                 on_tool_result(tc.name, tc.arguments, result_str)
+            # Emit citation_data for rag_retrieve results
+            if tc.name == "rag_retrieve" and on_stream is not None:
+                try:
+                    items = json.loads(result_str)
+                    if isinstance(items, list):
+                        on_stream(StreamEvent(kind="citation_data", evidence=items))
+                except (json.JSONDecodeError, TypeError):
+                    pass
             tool_results.append(ToolResult(tool_call_id=tc.id, content=result_str))
 
         messages.append(Message(role="tool", tool_results=tool_results))

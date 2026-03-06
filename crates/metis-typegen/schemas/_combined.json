@@ -91,6 +91,44 @@
     },
     "ChatStreamEvent": {
       "$schema": "http://json-schema.org/draft-07/schema#",
+      "definitions": {
+        "EvidenceItem": {
+          "properties": {
+            "bbox_norm": {
+              "items": {
+                "format": "double",
+                "type": "number"
+              },
+              "maxItems": 4,
+              "minItems": 4,
+              "type": "array"
+            },
+            "page": {
+              "format": "uint32",
+              "minimum": 0.0,
+              "type": "integer"
+            },
+            "score": {
+              "format": "double",
+              "type": "number"
+            },
+            "span_id": {
+              "type": "string"
+            },
+            "text": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "bbox_norm",
+            "page",
+            "score",
+            "span_id",
+            "text"
+          ],
+          "type": "object"
+        }
+      },
       "oneOf": [
         {
           "properties": {
@@ -192,6 +230,27 @@
           "required": [
             "kind",
             "role"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "items": {
+              "items": {
+                "$ref": "#/definitions/EvidenceItem"
+              },
+              "type": "array"
+            },
+            "kind": {
+              "enum": [
+                "CitationData"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "items",
+            "kind"
           ],
           "type": "object"
         },

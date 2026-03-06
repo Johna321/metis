@@ -74,6 +74,10 @@ export type ChatStreamEvent =
       tool_calls?: unknown;
     }
   | {
+      items: EvidenceItem[];
+      kind: "CitationData";
+    }
+  | {
       kind: "AgentDone";
     }
   | {

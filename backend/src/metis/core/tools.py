@@ -45,6 +45,7 @@ def make_rag_retrieve_tool(doc_id: str) -> tuple[ToolDef, Callable[..., str]]:
         return json.dumps(
             [
                 {
+                    "span_id": e.span_id,
                     "text": e.text,
                     "page": e.page,
                     "score": e.score,

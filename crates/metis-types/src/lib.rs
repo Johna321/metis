@@ -65,6 +65,9 @@ pub enum ChatStreamEvent {
         content: Option<String>,
         tool_calls: Option<serde_json::Value>,
     },
+    CitationData {
+        items: Vec<EvidenceItem>,
+    },
     AgentDone,
     Error {
         message: String,

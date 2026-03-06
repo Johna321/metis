@@ -264,6 +264,12 @@ async fn chat_start(
                                 tool_calls,
                             }
                         }
+                        "citation_data" => {
+                            let items: Vec<EvidenceItem> =
+                                serde_json::from_value(parsed["items"].clone())
+                                    .unwrap_or_default();
+                            ChatStreamEvent::CitationData { items }
+                        }
                         "agent_done" => ChatStreamEvent::AgentDone,
                         "error" => {
                             let message = parsed["message"]
