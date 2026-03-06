@@ -67,6 +67,7 @@ pub enum ChatStreamEvent {
     },
     CitationData {
         tool_call_id: String,
+        tool_name: String,
         items: Vec<EvidenceItem>,
     },
     AgentDone,

@@ -58,7 +58,7 @@ def run_agent(
                         ]
                         seen_span_ids.update(item["span_id"] for item in filtered if "span_id" in item)
                         if filtered:
-                            on_stream(StreamEvent(kind="citation_data", evidence=filtered, tool_call_id=tc.id))
+                            on_stream(StreamEvent(kind="citation_data", evidence=filtered, tool_call_id=tc.id, tool_name=tc.name))
                 except (json.JSONDecodeError, TypeError):
                     pass
             tool_results.append(ToolResult(tool_call_id=tc.id, content=result_str))

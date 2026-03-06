@@ -49,7 +49,7 @@ export type ChatStreamCallbacks = {
   onToolCallDelta?: (text: string) => void;
   onToolCallDone?: (id: string, name: string, args: unknown) => void;
   onMessageDone?: (role: string, content: string | null, toolCalls: unknown | null) => void;
-  onCitationData?: (items: EvidenceItem[], toolCallId: string) => void;
+  onCitationData?: (items: EvidenceItem[], toolCallId: string, toolName: string) => void;
   onAgentDone?: () => void;
   onError?: (message: string) => void;
 };
@@ -107,7 +107,7 @@ export async function chatStart(
         callbacks.onMessageDone?.(ev.role, ev.content ?? null, ev.tool_calls ?? null);
         break;
       case "CitationData":
-        callbacks.onCitationData?.(ev.items, ev.tool_call_id);
+        callbacks.onCitationData?.(ev.items, ev.tool_call_id, ev.tool_name);
         break;
       case "AgentDone":
         callbacks.onAgentDone?.();

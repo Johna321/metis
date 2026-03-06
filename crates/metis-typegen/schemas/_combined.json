@@ -249,12 +249,16 @@
             },
             "tool_call_id": {
               "type": "string"
+            },
+            "tool_name": {
+              "type": "string"
             }
           },
           "required": [
             "items",
             "kind",
-            "tool_call_id"
+            "tool_call_id",
+            "tool_name"
           ],
           "type": "object"
         },

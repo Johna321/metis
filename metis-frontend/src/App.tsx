@@ -17,6 +17,12 @@ pdfjs.GlobalWorkerOptions.workerSrc = new URL(
 
 const MIN_DRAG_PX = 5;
 
+const TOOL_BADGE: Record<string, { label: string; cls: string }> = {
+  rag_retrieve: { label: "RAG", cls: "rag" },
+  web_search:   { label: "WEB", cls: "web" },
+  read_page:    { label: "PG",  cls: "page" },
+};
+
 // BBox types
 
 type BBoxSelection = {
@@ -40,7 +46,7 @@ interface PageProxy {
 type ChatMessage = {
   role: "user" | "assistant";
   content: string;
-  evidence?: Array<EvidenceItem & { toolCallId: string }>;
+  evidence?: Array<EvidenceItem & { toolCallId: string; toolName: string }>;
 };
 
 function App() {
@@ -235,11 +241,11 @@ function App() {
         });
         console.log(delta);
       },
-      onCitationData: (items, toolCallId) => {
+      onCitationData: (items, toolCallId, toolName) => {
         setMessages(prev => {
           const updated = [...prev];
           const last = updated[updated.length - 1];
-          const tagged = items.map(item => ({ ...item, toolCallId }));
+          const tagged = items.map(item => ({ ...item, toolCallId, toolName }));
           const merged = [...(last.evidence ?? []), ...tagged];
           updated[updated.length - 1] = { ...last, evidence: merged };
           return updated;
@@ -358,24 +364,20 @@ function App() {
             {messages.map((msg, i) => (
               <div key={i} className={`chat-bubble chat-bubble--${msg.role}`}>
                 {msg.content}
-                {msg.evidence && msg.evidence.length > 0 && (() => {
-                  const tcIds = [...new Set(msg.evidence!.map(e => e.toolCallId))];
-                  return (
-                    <div className="citation-list">
-                      {msg.evidence.map((ev, j) => {
-                        const srcIdx = tcIds.indexOf(ev.toolCallId);
-                        return (
-                          <div key={j} className="citation-item" title={ev.text}>
-                            <span className={`citation-src citation-src--${srcIdx % 5}`}>{srcIdx + 1}</span>
-                            <span className="citation-page">p.{ev.page + 1}</span>
-                            <span className="citation-score">{(ev.score * 100).toFixed(0)}%</span>
-                            <span className="citation-text">{ev.text.slice(0, 80)}{ev.text.length > 80 ? "…" : ""}</span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  );
-                })()}
+                {msg.evidence && msg.evidence.length > 0 && (
+                  <div className="citation-list">
+                    {msg.evidence.map((ev, j) => (
+                      <div key={j} className="citation-item" title={ev.text}>
+                        <span className={`citation-src citation-src--${TOOL_BADGE[ev.toolName]?.cls ?? "default"}`}>
+                          {TOOL_BADGE[ev.toolName]?.label ?? "?"}
+                        </span>
+                        <span className="citation-page">p.{ev.page + 1}</span>
+                        <span className="citation-score">{(ev.score * 100).toFixed(0)}%</span>
+                        <span className="citation-text">{ev.text.slice(0, 80)}{ev.text.length > 80 ? "…" : ""}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             ))}
             <div ref={messagesEndRef} />
