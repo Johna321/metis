@@ -76,6 +76,7 @@ export type ChatStreamEvent =
   | {
       items: EvidenceItem[];
       kind: "CitationData";
+      tool_call_id: string;
     }
   | {
       kind: "AgentDone";

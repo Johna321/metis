@@ -246,11 +246,15 @@
                 "CitationData"
               ],
               "type": "string"
+            },
+            "tool_call_id": {
+              "type": "string"
             }
           },
           "required": [
             "items",
-            "kind"
+            "kind",
+            "tool_call_id"
           ],
           "type": "object"
         },

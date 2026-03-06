@@ -265,10 +265,14 @@ async fn chat_start(
                             }
                         }
                         "citation_data" => {
+                            let tool_call_id = parsed["tool_call_id"]
+                                .as_str()
+                                .unwrap_or_default()
+                                .to_string();
                             let items: Vec<EvidenceItem> =
                                 serde_json::from_value(parsed["items"].clone())
                                     .unwrap_or_default();
-                            ChatStreamEvent::CitationData { items }
+                            ChatStreamEvent::CitationData { tool_call_id, items }
                         }
                         "agent_done" => ChatStreamEvent::AgentDone,
                         "error" => {

@@ -21,6 +21,7 @@ class StreamEvent:
     tool_call: ToolCall | None = None
     message: Message | None = None
     evidence: list[dict] | None = None
+    tool_call_id: str | None = None
 
 
 class ChatModel(Protocol):

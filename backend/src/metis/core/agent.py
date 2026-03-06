@@ -6,6 +6,7 @@ from typing import Callable
 from .schema import Message, ToolResult
 from .llm import ChatModel, StreamEvent
 from .tools import ToolRegistry
+from ..settings import CITATION_MIN_SCORE
 
 def run_agent(
     model: ChatModel,
@@ -17,6 +18,7 @@ def run_agent(
     on_tool_result: Callable[[str, dict, str], None] | None = None,
 ) -> Message:
     messages: list[Message] = [Message(role="user", content=user_query)]
+    seen_span_ids: set[str] = set()
 
     for _ in range(max_iterations):
         final_message: Message | None = None
@@ -49,7 +51,14 @@ def run_agent(
                 try:
                     items = json.loads(result_str)
                     if isinstance(items, list):
-                        on_stream(StreamEvent(kind="citation_data", evidence=items))
+                        filtered = [
+                            item for item in items
+                            if item.get("score", 0.0) >= CITATION_MIN_SCORE
+                            and item.get("span_id") not in seen_span_ids
+                        ]
+                        seen_span_ids.update(item["span_id"] for item in filtered if "span_id" in item)
+                        if filtered:
+                            on_stream(StreamEvent(kind="citation_data", evidence=filtered, tool_call_id=tc.id))
                 except (json.JSONDecodeError, TypeError):
                     pass
             tool_results.append(ToolResult(tool_call_id=tc.id, content=result_str))

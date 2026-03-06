@@ -113,7 +113,7 @@ def _stream_event_to_sse(event: StreamEvent) -> ServerSentEvent | None:
             ]
         return ServerSentEvent(data=payload, event="message_done")
     elif event.kind == "citation_data" and event.evidence:
-        return ServerSentEvent(data={"items": event.evidence}, event="citation_data")
+        return ServerSentEvent(data={"tool_call_id": event.tool_call_id, "items": event.evidence}, event="citation_data")
     elif event.kind == "agent_done":
         return ServerSentEvent(data={}, event="agent_done")
     return None

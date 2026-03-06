@@ -109,7 +109,8 @@
       "type": "object",
       "required": [
         "items",
-        "kind"
+        "kind",
+        "tool_call_id"
       ],
       "properties": {
         "items": {
@@ -123,6 +124,9 @@
           "enum": [
             "CitationData"
           ]
+        },
+        "tool_call_id": {
+          "type": "string"
         }
       }
     },
