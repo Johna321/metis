@@ -17,6 +17,19 @@ import type {
   ChatStreamEvent,
 } from "./generated_types";
 
+/** Compute the SHA256 doc_id for a local file (runs in Rust, very fast). */
+export async function hashFile(filePath: string): Promise<string> {
+  return invoke("hash_file", { filePath });
+}
+
+/**
+ * Check if a document has already been ingested.
+ * Returns the stored metadata if found, or null if not yet ingested.
+ */
+export async function checkDoc(docId: string): Promise<IngestResponse | null> {
+  return invoke("check_doc", { docId });
+}
+
 export async function ingestPdf(filePath: string): Promise<IngestResponse> {
   return invoke("ingest_pdf", { filePath });
 }

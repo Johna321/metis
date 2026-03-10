@@ -1,6 +1,9 @@
 use futures::StreamExt;
-use metis_types::{BboxSelection, ChatStreamEvent, EvidenceItem, IngestResponse, VectorizeResponse};
+use metis_types::{
+    BboxSelection, ChatStreamEvent, EvidenceItem, IngestResponse, VectorizeResponse,
+};
 use serde::Serialize;
+use sha2::{Digest, Sha256};
 use std::sync::Mutex;
 use tauri::{Emitter, Manager};
 use tauri_plugin_shell::{
@@ -40,6 +43,42 @@ impl Serialize for MetisError {
 
 fn map_reqwest_err(e: reqwest::Error) -> MetisError {
     MetisError::BackendUnavailable(e.to_string())
+}
+
+/// Compute the SHA256 doc_id for a PDF file without uploading it.
+/// Returns "sha256:<hex>" — identical to what the backend would compute.
+#[tauri::command]
+fn hash_file(file_path: String) -> Result<String, MetisError> {
+    let bytes = std::fs::read(&file_path)
+        .map_err(|e| MetisError::IngestFailed(format!("Cannot read file: {e}")))?;
+    let hash = Sha256::digest(&bytes);
+    Ok(format!("sha256:{}", hex::encode(hash)))
+}
+
+/// Check whether a document has already been ingested (spans exist in the backend store).
+/// Returns the stored IngestResponse if found, or None if not yet ingested.
+#[tauri::command]
+async fn check_doc(doc_id: String) -> Result<Option<IngestResponse>, MetisError> {
+    let resp = reqwest::Client::new()
+        .get(format!("{BACKEND_URL}/documents/{doc_id}"))
+        .send()
+        .await
+        .map_err(map_reqwest_err)?;
+
+    if resp.status() == 404 {
+        return Ok(None);
+    }
+    if !resp.status().is_success() {
+        return Err(MetisError::IngestFailed(
+            resp.text().await.unwrap_or_default(),
+        ));
+    }
+
+    let meta = resp
+        .json::<IngestResponse>()
+        .await
+        .map_err(|e| MetisError::IngestFailed(e.to_string()))?;
+    Ok(Some(meta))
 }
 
 #[tauri::command]
@@ -269,14 +308,15 @@ async fn chat_start(
                                 .as_str()
                                 .unwrap_or_default()
                                 .to_string();
-                            let tool_name = parsed["tool_name"]
-                                .as_str()
-                                .unwrap_or_default()
-                                .to_string();
+                            let tool_name =
+                                parsed["tool_name"].as_str().unwrap_or_default().to_string();
                             let items: Vec<EvidenceItem> =
-                                serde_json::from_value(parsed["items"].clone())
-                                    .unwrap_or_default();
-                            ChatStreamEvent::CitationData { tool_call_id, tool_name, items }
+                                serde_json::from_value(parsed["items"].clone()).unwrap_or_default();
+                            ChatStreamEvent::CitationData {
+                                tool_call_id,
+                                tool_name,
+                                items,
+                            }
                         }
                         "agent_done" => ChatStreamEvent::AgentDone,
                         "error" => {
@@ -342,6 +382,8 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            hash_file,
+            check_doc,
             ingest_pdf,
             vectorize_doc,
             retrieve_evidence,
