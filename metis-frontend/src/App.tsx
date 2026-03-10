@@ -4,7 +4,7 @@ import { convertFileSrc } from "@tauri-apps/api/core";
 
 import "./App.css";
 
-import { ingestPdf, vectorizeDoc } from "./backend/http";
+import { hashFile, checkDoc, ingestPdf, vectorizeDoc } from "./backend/http";
 import { Toolbar } from "./components/Toolbar";
 import { PdfViewer, type BBoxSelection } from "./components/PdfViewer";
 import { ChatPanel } from "./components/ChatPanel";
@@ -28,15 +28,27 @@ function App() {
     setDocId(null);
     setNumPages(0);
     setPdfUrl(convertFileSrc(path));
-    setStatus("Ingesting...");
+    setStatus("Hashing...");
 
     try {
-      const meta = await ingestPdf(path);
+      const docId = await hashFile(path);
+
+      setStatus("Checking cache...");
+      let meta = await checkDoc(docId);
+      const ingestCached = meta !== null;
+
+      if (!meta) {
+        setStatus("Ingesting...");
+        meta = await ingestPdf(path);
+      }
+
       setStatus("Vectorizing...");
       const vec = await vectorizeDoc(meta.doc_id);
       setDocId(meta.doc_id);
-      setStatus(vec.was_cached ? "Loaded (embeddings cached)" : "");
-      if (vec.was_cached) setTimeout(() => setStatus(""), 2000);
+
+      const anyCached = ingestCached || vec.was_cached;
+      setStatus(anyCached ? "Loaded (cached)" : "");
+      if (anyCached) setTimeout(() => setStatus(""), 2000);
     } catch (err: unknown) {
       console.error("ingest error:", err);
       setStatus(`Ingest failed: ${err}`);
