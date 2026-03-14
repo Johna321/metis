@@ -9,7 +9,7 @@ from pathlib import Path
 from ..core.ingest import ingest_pdf_bytes, ingest_pdf_bytes_layout
 from ..core.retrieve import retrieve
 from ..core.store import paths, read_spans_jsonl
-from ..core.vectorize import vectorize_spans, retrieve_semantic
+from ..core.vectorize import vectorize_spans, retrieve_semantic, retrieve_hybrid
 from ..core.agent import run_agent
 from ..core.llm import AnthropicModel, OpenAIModel, OpenRouterModel, StreamEvent
 from ..core.tools import ToolRegistry, make_rag_retrieve_tool, make_web_search_tool, make_read_page_tool
@@ -275,6 +275,21 @@ def retrieve_semantic_cmd(
     if top_k is not None:
         kwargs["top_k"] = top_k
     ev = retrieve_semantic(doc_id=doc_id, query=query, **kwargs)
+    print([e.__dict__ for e in ev])
+
+@app.command("retrieve")
+def retrieve_hybrid_cmd(
+    doc_id: str,
+    query: str,
+    page: int = typer.Option(None, "--page", "-p", help="Filter to specific page"),
+    top_k: int = typer.Option(None, "--top-k", "-k", help="Max results"),
+):
+    kwargs = {}
+    if page is not None:
+        kwargs["page"] = page
+    if top_k is not None:
+        kwargs["top_k"] = top_k
+    ev = retrieve_hybrid(doc_id=doc_id, query=query, **kwargs)
     print([e.__dict__ for e in ev])
 
 @app.command()
