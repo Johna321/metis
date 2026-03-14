@@ -7,9 +7,10 @@ interface ChatPanelProps {
   docId: string | null;
   bboxSelections: BBoxSelection[];
   onBBoxClear: () => void;
+  isMinimized: boolean;
 }
 
-export function ChatPanel({ docId, bboxSelections, onBBoxClear }: ChatPanelProps) {
+export function ChatPanel({ docId, bboxSelections, onBBoxClear, isMinimized }: ChatPanelProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [chatInput, setChatInput] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
@@ -86,34 +87,38 @@ export function ChatPanel({ docId, bboxSelections, onBBoxClear }: ChatPanelProps
   }
 
   return (
-    <aside className="sidepanel">
-      <div className="chat-messages">
-        {messages.length === 0 && (
-          <div className="panel-empty">Ask a question about the document.</div>
-        )}
-        {messages.map((msg, i) => (
-          <ChatMessageBubble key={i} msg={msg} />
-        ))}
-        <div ref={messagesEndRef} />
-      </div>
-      <div className="chat-input-row">
-        <textarea
-          className="chat-textarea"
-          value={chatInput}
-          onChange={e => setChatInput(e.target.value)}
-          onKeyDown={handleChatKeyDown}
-          placeholder="Ask about the paper... (Enter to send)"
-          rows={3}
-          disabled={!docId || isStreaming}
-        />
-        <button
-          className="chat-send-btn"
-          onClick={handleSend}
-          disabled={!docId || !chatInput.trim() || isStreaming}
-        >
-          Send
-        </button>
-      </div>
+    <aside className={`sidepanel ${isMinimized ? "minimized" : ""}`}>
+      {!isMinimized && (
+        <>
+          <div className="chat-messages">
+            {messages.length === 0 && (
+              <div className="panel-empty">Ask a question about the document.</div>
+            )}
+            {messages.map((msg, i) => (
+              <ChatMessageBubble key={i} msg={msg} />
+            ))}
+            <div ref={messagesEndRef} />
+          </div>
+          <div className="chat-input-row">
+            <textarea
+              className="chat-textarea"
+              value={chatInput}
+              onChange={e => setChatInput(e.target.value)}
+              onKeyDown={handleChatKeyDown}
+              placeholder="Ask about the paper... (Enter to send)"
+              rows={3}
+              disabled={!docId || isStreaming}
+            />
+            <button
+              className="chat-send-btn"
+              onClick={handleSend}
+              disabled={!docId || !chatInput.trim() || isStreaming}
+            >
+              Send
+            </button>
+          </div>
+        </>
+      )}
     </aside>
   );
 }
