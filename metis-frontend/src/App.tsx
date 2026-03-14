@@ -16,6 +16,7 @@ function App() {
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [bboxMode, setBboxMode] = useState(false);
   const [bboxSelections, setBboxSelections] = useState<BBoxSelection[]>([]);
+  const [isChatMinimized, setIsChatMinimized] = useState(false);
 
   async function openPdf() {
     const path = await open({
@@ -78,6 +79,8 @@ function App() {
         docId={docId}
         status={status}
         numPages={numPages}
+        isChatMinimized={isChatMinimized}
+        onToggleChatMinimize={() => setIsChatMinimized(!isChatMinimized)}
       />
 
       <div className="main-split">
@@ -100,6 +103,7 @@ function App() {
           docId={docId}
           bboxSelections={bboxSelections}
           onBBoxClear={() => setBboxSelections([])}
+          isMinimized={isChatMinimized}
         />
       </div>
     </div>
