@@ -15,10 +15,7 @@ fn main() {
         ("EvidenceItem", schema_for!(metis_types::EvidenceItem)),
         ("BboxSelection", schema_for!(metis_types::BboxSelection)),
         ("ChatRequest", schema_for!(metis_types::ChatRequest)),
-        (
-            "ChatStreamEvent",
-            schema_for!(metis_types::ChatStreamEvent),
-        ),
+        ("ChatStreamEvent", schema_for!(metis_types::ChatStreamEvent)),
     ];
 
     // Write individual schema files

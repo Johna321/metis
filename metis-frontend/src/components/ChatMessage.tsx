@@ -1,3 +1,4 @@
+import Markdown from 'react-markdown'
 import type { EvidenceItem } from "../backend/http";
 
 export const TOOL_BADGE: Record<string, { label: string; cls: string }> = {
@@ -19,7 +20,7 @@ interface ChatMessageBubbleProps {
 export function ChatMessageBubble({ msg }: ChatMessageBubbleProps) {
   return (
     <div className={`chat-bubble chat-bubble--${msg.role}`}>
-      {msg.content}
+      <Markdown>{msg.content}</Markdown>
       {msg.evidence && msg.evidence.length > 0 && (
         <div className="citation-list">
           {msg.evidence.map((ev, j) => (
