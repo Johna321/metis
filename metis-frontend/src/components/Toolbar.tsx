@@ -31,7 +31,7 @@ export function Toolbar({ onOpenPdf, onBBoxToggle, bboxMode, docId, status, numP
         onClick={onToggleChatMinimize}
         title={isChatMinimized ? "Expand chat" : "Minimize chat"}
       >
-        {isChatMinimized ? "▶" : "◀"}
+        {isChatMinimized ? "◀" : "▶"}
       </button>
     </header>
   );
