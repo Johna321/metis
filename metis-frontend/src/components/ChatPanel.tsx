@@ -8,9 +8,10 @@ interface ChatPanelProps {
   bboxSelections: BBoxSelection[];
   onBBoxClear: () => void;
   isMinimized: boolean;
+  onCitationClick: (page: number, bbox_norm: [number, number, number, number]) => void;
 }
 
-export function ChatPanel({ docId, bboxSelections, onBBoxClear, isMinimized }: ChatPanelProps) {
+export function ChatPanel({ docId, bboxSelections, onBBoxClear, isMinimized, onCitationClick }: ChatPanelProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [chatInput, setChatInput] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
@@ -95,7 +96,7 @@ export function ChatPanel({ docId, bboxSelections, onBBoxClear, isMinimized }: C
               <div className="panel-empty">Ask a question about the document.</div>
             )}
             {messages.map((msg, i) => (
-              <ChatMessageBubble key={i} msg={msg} />
+              <ChatMessageBubble key={i} msg={msg} onCitationClick={onCitationClick} />
             ))}
             <div ref={messagesEndRef} />
           </div>

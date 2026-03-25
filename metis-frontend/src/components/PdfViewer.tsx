@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Document, Page, pdfjs } from "react-pdf";
 import "react-pdf/dist/Page/TextLayer.css";
 import "react-pdf/dist/Page/AnnotationLayer.css";
@@ -33,14 +33,26 @@ interface PdfViewerProps {
   numPages: number;
   bboxMode: boolean;
   bboxSelections: BBoxSelection[];
+  highlightTarget?: { page: number; bbox_norm: [number, number, number, number] } | null;
   onNumPagesLoad: (n: number) => void;
   onBBoxAdd: (sel: BBoxSelection) => void;
+  onBackgroundClick?: () => void;
 }
 
-export function PdfViewer({ pdfUrl, numPages, bboxMode, bboxSelections, onNumPagesLoad, onBBoxAdd }: PdfViewerProps) {
+export function PdfViewer({ pdfUrl, numPages, bboxMode, bboxSelections, highlightTarget, onNumPagesLoad, onBBoxAdd, onBackgroundClick }: PdfViewerProps) {
   const [pageDims, setPageDims] = useState<Record<number, { w: number; h: number }>>({});
   const [dragState, setDragState] = useState<DragState | null>(null);
   const [liveRect, setLiveRect] = useState<LiveRect | null>(null);
+  const pageRefs = useRef<Record<number, HTMLDivElement | null>>({});
+
+  useEffect(() => {
+    if (highlightTarget != null) {
+      const pageDiv = pageRefs.current[highlightTarget.page + 1];
+      if (pageDiv) {
+        pageDiv.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+    }
+  }, [highlightTarget]);
 
   function handlePageLoad(pageNum: number, page: PageProxy) {
     const { width, height } = page.getViewport({ scale: 1 });
@@ -115,35 +127,53 @@ export function PdfViewer({ pdfUrl, numPages, bboxMode, bboxSelections, onNumPag
         <div
           className={`page-wrap${bboxMode ? " no-select" : ""}`}
           key={`p_${i + 1}`}
+          ref={el => { pageRefs.current[i + 1] = el; }}
         >
           <Page
             pageNumber={i + 1}
             width={900}
             onLoadSuccess={(page) => handlePageLoad(i + 1, page as unknown as PageProxy)}
           />
-          {bboxMode && (
+          {(bboxMode || highlightTarget) && (
             <div
               className="bbox-overlay"
-              onMouseDown={(e) => handleBBoxDown(e, i + 1)}
-              onMouseMove={handleBBoxMove}
-              onMouseUp={(e) => handleBBoxUp(e, i + 1)}
+              onMouseDown={(e) => bboxMode && handleBBoxDown(e, i + 1)}
+              onMouseMove={(e) => bboxMode && handleBBoxMove(e)}
+              onMouseUp={(e) => bboxMode && handleBBoxUp(e, i + 1)}
+              onClick={() => !bboxMode && onBackgroundClick?.()}
+              style={{ zIndex: bboxMode ? 10 : 3, cursor: bboxMode ? "crosshair" : "default" }}
             >
-              {bboxSelections
-                .filter(b => b.page === i)
-                .map((b, idx) => (
-                  <div
-                    key={idx}
-                    className="bbox-completed"
-                    style={{
-                      left:   `${b.bbox_norm[0] * 100}%`,
-                      top:    `${b.bbox_norm[1] * 100}%`,
-                      width:  `${(b.bbox_norm[2] - b.bbox_norm[0]) * 100}%`,
-                      height: `${(b.bbox_norm[3] - b.bbox_norm[1]) * 100}%`,
-                    }}
-                  />
-                ))}
-              {liveRect && dragState?.page === i + 1 && (
-                <div className="bbox-rubber-band" style={liveRect} />
+              {bboxMode && (
+                <>
+                  {bboxSelections
+                    .filter(b => b.page === i)
+                    .map((b, idx) => (
+                      <div
+                        key={idx}
+                        className="bbox-completed"
+                        style={{
+                          left:   `${b.bbox_norm[0] * 100}%`,
+                          top:    `${b.bbox_norm[1] * 100}%`,
+                          width:  `${(b.bbox_norm[2] - b.bbox_norm[0]) * 100}%`,
+                          height: `${(b.bbox_norm[3] - b.bbox_norm[1]) * 100}%`,
+                        }}
+                      />
+                    ))}
+                  {liveRect && dragState?.page === i + 1 && (
+                    <div className="bbox-rubber-band" style={liveRect} />
+                  )}
+                </>
+              )}
+              {highlightTarget?.page === i && (
+                <div
+                  className="bbox-citation-highlight"
+                  style={{
+                    left:   `${highlightTarget.bbox_norm[0] * 100}%`,
+                    top:    `${highlightTarget.bbox_norm[1] * 100}%`,
+                    width:  `${(highlightTarget.bbox_norm[2] - highlightTarget.bbox_norm[0]) * 100}%`,
+                    height: `${(highlightTarget.bbox_norm[3] - highlightTarget.bbox_norm[1]) * 100}%`,
+                  }}
+                />
               )}
             </div>
           )}
