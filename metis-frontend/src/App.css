@@ -62,6 +62,10 @@
   color: #9ca3af;
 }
 
+/* Text and annotation layers — positioning handled by pdf_viewer.css */
+.page-wrap > .textLayer { z-index: 1; }
+.page-wrap > .annotationLayer { z-index: 2; }
+
 /* BBox selection */
 .page-wrap { position: relative; }
 .no-select { user-select: none; }

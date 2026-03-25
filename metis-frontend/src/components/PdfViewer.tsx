@@ -1,8 +1,11 @@
 import { useRef, useEffect, useState, useCallback } from "react";
 
+import "pdfjs-dist/web/pdf_viewer.css";
+
 import { usePdfDocument } from "../hooks/usePdfDocument";
 import { useVirtualPages } from "../hooks/useVirtualPages";
 import { useRenderQueue } from "../hooks/useRenderQueue";
+import { usePageLayers } from "../hooks/usePageLayers";
 import { useBBoxDrag } from "../hooks/useBBoxDrag";
 import { PageSlot } from "./PageSlot";
 import { BBoxOverlay } from "./BBoxOverlay";
@@ -50,6 +53,13 @@ export function PdfViewer({
     pageDims,
     visiblePages,
     PAGE_WIDTH
+  );
+  const { getTextLayer, getAnnotLayer } = usePageLayers(
+    doc,
+    pageDims,
+    visiblePages,
+    PAGE_WIDTH,
+    pageRefs.current,
   );
   const { dragState, liveRect, handleDown, handleMove, handleUp } =
     useBBoxDrag(pageDims, onBBoxAdd);
@@ -105,7 +115,10 @@ export function PdfViewer({
             pageIndex={i}
             pageWidth={PAGE_WIDTH}
             pageHeight={pageHeight}
+            nativeWidth={dim.w}
             offscreenCanvas={getRenderedCanvas(i)}
+            textLayerDiv={getTextLayer(i)}
+            annotLayerDiv={getAnnotLayer(i)}
             observeElement={trackPageRef}
           >
             <BBoxOverlay
