@@ -1,184 +1,128 @@
-import { useState, useRef, useEffect } from "react";
-import { Document, Page, pdfjs } from "react-pdf";
-import "react-pdf/dist/Page/TextLayer.css";
-import "react-pdf/dist/Page/AnnotationLayer.css";
+import { useRef, useEffect, useState, useCallback } from "react";
 
-pdfjs.GlobalWorkerOptions.workerSrc = new URL(
-  "pdfjs-dist/build/pdf.worker.min.mjs",
-  import.meta.url
-).toString();
+import { usePdfDocument } from "../hooks/usePdfDocument";
+import { useVirtualPages } from "../hooks/useVirtualPages";
+import { useRenderQueue } from "../hooks/useRenderQueue";
+import { useBBoxDrag } from "../hooks/useBBoxDrag";
+import { PageSlot } from "./PageSlot";
+import { BBoxOverlay } from "./BBoxOverlay";
 
-const MIN_DRAG_PX = 5;
+const PAGE_WIDTH = 900;
 
 export type BBoxSelection = {
-  page: number;  // 0-indexed
-  bbox_norm: [number, number, number, number];  // [x0, y0, x1, y1] in [0, 1]
-  bbox_pdf:  [number, number, number, number];  // [x0, y0, x1, y1] in PDF points (PyMuPDF)
+  page: number; // 0-indexed
+  bbox_norm: [number, number, number, number]; // [x0, y0, x1, y1] in [0, 1]
+  bbox_pdf: [number, number, number, number]; // [x0, y0, x1, y1] in PDF points (PyMuPDF)
 };
-
-type DragState = {
-  page: number;  // 1-based page number of the active drag
-  startX: number;
-  startY: number;
-};
-
-type LiveRect = { left: number; top: number; width: number; height: number };
-
-interface PageProxy {
-  getViewport(opts: { scale: number }): { width: number; height: number };
-}
 
 interface PdfViewerProps {
   pdfUrl: string;
   numPages: number;
   bboxMode: boolean;
   bboxSelections: BBoxSelection[];
-  highlightTarget?: { page: number; bbox_norm: [number, number, number, number] } | null;
+  highlightTarget?: {
+    page: number;
+    bbox_norm: [number, number, number, number];
+  } | null;
   onNumPagesLoad: (n: number) => void;
   onBBoxAdd: (sel: BBoxSelection) => void;
   onBackgroundClick?: () => void;
 }
 
-export function PdfViewer({ pdfUrl, numPages, bboxMode, bboxSelections, highlightTarget, onNumPagesLoad, onBBoxAdd, onBackgroundClick }: PdfViewerProps) {
-  const [pageDims, setPageDims] = useState<Record<number, { w: number; h: number }>>({});
-  const [dragState, setDragState] = useState<DragState | null>(null);
-  const [liveRect, setLiveRect] = useState<LiveRect | null>(null);
-  const pageRefs = useRef<Record<number, HTMLDivElement | null>>({});
+export function PdfViewer({
+  pdfUrl,
+  bboxMode,
+  bboxSelections,
+  highlightTarget,
+  onNumPagesLoad,
+  onBBoxAdd,
+  onBackgroundClick,
+}: PdfViewerProps) {
+  const [scrollContainer, setScrollContainer] = useState<HTMLDivElement | null>(
+    null
+  );
+  const pageRefs = useRef<Map<number, HTMLDivElement>>(new Map());
 
+  const { doc, numPages, pageDims, loading, error } = usePdfDocument(pdfUrl);
+  const { visiblePages, observeElement } = useVirtualPages(scrollContainer);
+  const { getRenderedCanvas } = useRenderQueue(
+    doc,
+    pageDims,
+    visiblePages,
+    PAGE_WIDTH
+  );
+  const { dragState, liveRect, handleDown, handleMove, handleUp } =
+    useBBoxDrag(pageDims, onBBoxAdd);
+
+  // Notify parent of page count
+  useEffect(() => {
+    if (numPages > 0) {
+      onNumPagesLoad(numPages);
+    }
+  }, [numPages, onNumPagesLoad]);
+
+  // Scroll to highlight target
   useEffect(() => {
     if (highlightTarget != null) {
-      const pageDiv = pageRefs.current[highlightTarget.page + 1];
-      if (pageDiv) {
-        pageDiv.scrollIntoView({ behavior: "smooth", block: "center" });
+      const el = pageRefs.current.get(highlightTarget.page);
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
       }
     }
   }, [highlightTarget]);
 
-  function handlePageLoad(pageNum: number, page: PageProxy) {
-    const { width, height } = page.getViewport({ scale: 1 });
-    setPageDims(prev => ({ ...prev, [pageNum]: { w: width, h: height } }));
+  // Track page slot refs for scrollIntoView
+  const trackPageRef = useCallback(
+    (index: number, el: HTMLDivElement | null) => {
+      if (el) {
+        pageRefs.current.set(index, el);
+      } else {
+        pageRefs.current.delete(index);
+      }
+      observeElement(index, el);
+    },
+    [observeElement]
+  );
+
+  if (loading && pageDims.length === 0) {
+    return <div className="status">Loading PDF...</div>;
   }
 
-  function handleBBoxDown(e: React.MouseEvent<HTMLDivElement>, pageNum: number) {
-    e.preventDefault();
-    const rect = e.currentTarget.getBoundingClientRect();
-    setDragState({ page: pageNum, startX: e.clientX - rect.left, startY: e.clientY - rect.top });
-    setLiveRect(null);
-  }
-
-  function handleBBoxMove(e: React.MouseEvent<HTMLDivElement>) {
-    if (!dragState) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    const curX = e.clientX - rect.left;
-    const curY = e.clientY - rect.top;
-    setLiveRect({
-      left:   Math.min(dragState.startX, curX),
-      top:    Math.min(dragState.startY, curY),
-      width:  Math.abs(curX - dragState.startX),
-      height: Math.abs(curY - dragState.startY),
-    });
-  }
-
-  function handleBBoxUp(e: React.MouseEvent<HTMLDivElement>, pageNum: number) {
-    if (!dragState || dragState.page !== pageNum) return;
-
-    const overlay = e.currentTarget;
-    const renderedW = overlay.offsetWidth;
-    const renderedH = overlay.offsetHeight;
-    const rect = overlay.getBoundingClientRect();
-    const endX = e.clientX - rect.left;
-    const endY = e.clientY - rect.top;
-
-    const dw = Math.abs(endX - dragState.startX);
-    const dh = Math.abs(endY - dragState.startY);
-
-    setDragState(null);
-    setLiveRect(null);
-
-    if (dw < MIN_DRAG_PX || dh < MIN_DRAG_PX) return;
-
-    const x0 = Math.min(dragState.startX, endX);
-    const y0 = Math.min(dragState.startY, endY);
-    const x1 = Math.max(dragState.startX, endX);
-    const y1 = Math.max(dragState.startY, endY);
-
-    const x0n = x0 / renderedW;
-    const y0n = y0 / renderedH;
-    const x1n = x1 / renderedW;
-    const y1n = y1 / renderedH;
-
-    const dims = pageDims[pageNum];
-    const bbox_pdf: [number, number, number, number] = dims
-      ? [x0n * dims.w, y0n * dims.h, x1n * dims.w, y1n * dims.h]
-      : [0, 0, 0, 0];
-
-    // console.log("[BBox] new selection:", { page: pageNum - 1, bbox_norm: [x0n, y0n, x1n, y1n], bbox_pdf });
-    onBBoxAdd({ page: pageNum - 1, bbox_norm: [x0n, y0n, x1n, y1n], bbox_pdf });
+  if (error) {
+    return <div className="status">Failed to load PDF from backend.</div>;
   }
 
   return (
-    <Document
-      file={pdfUrl}
-      onLoadSuccess={(d) => onNumPagesLoad(d.numPages)}
-      loading={<div className="status">Loading PDF...</div>}
-      error={<div className="status">Failed to load PDF from backend.</div>}
+    <div
+      className="pdf-scroll-container"
+      ref={setScrollContainer}
     >
-      {Array.from({ length: numPages }, (_, i) => (
-        <div
-          className={`page-wrap${bboxMode ? " no-select" : ""}`}
-          key={`p_${i + 1}`}
-          ref={el => { pageRefs.current[i + 1] = el; }}
-        >
-          <Page
-            pageNumber={i + 1}
-            width={900}
-            onLoadSuccess={(page) => handlePageLoad(i + 1, page as unknown as PageProxy)}
-          />
-          {(bboxMode || highlightTarget) && (
-            <div
-              className="bbox-overlay"
-              onMouseDown={(e) => bboxMode && handleBBoxDown(e, i + 1)}
-              onMouseMove={(e) => bboxMode && handleBBoxMove(e)}
-              onMouseUp={(e) => bboxMode && handleBBoxUp(e, i + 1)}
-              onClick={() => !bboxMode && onBackgroundClick?.()}
-              style={{ zIndex: bboxMode ? 10 : 3, cursor: bboxMode ? "crosshair" : "default" }}
-            >
-              {bboxMode && (
-                <>
-                  {bboxSelections
-                    .filter(b => b.page === i)
-                    .map((b, idx) => (
-                      <div
-                        key={idx}
-                        className="bbox-completed"
-                        style={{
-                          left:   `${b.bbox_norm[0] * 100}%`,
-                          top:    `${b.bbox_norm[1] * 100}%`,
-                          width:  `${(b.bbox_norm[2] - b.bbox_norm[0]) * 100}%`,
-                          height: `${(b.bbox_norm[3] - b.bbox_norm[1]) * 100}%`,
-                        }}
-                      />
-                    ))}
-                  {liveRect && dragState?.page === i + 1 && (
-                    <div className="bbox-rubber-band" style={liveRect} />
-                  )}
-                </>
-              )}
-              {highlightTarget?.page === i && (
-                <div
-                  className="bbox-citation-highlight"
-                  style={{
-                    left:   `${highlightTarget.bbox_norm[0] * 100}%`,
-                    top:    `${highlightTarget.bbox_norm[1] * 100}%`,
-                    width:  `${(highlightTarget.bbox_norm[2] - highlightTarget.bbox_norm[0]) * 100}%`,
-                    height: `${(highlightTarget.bbox_norm[3] - highlightTarget.bbox_norm[1]) * 100}%`,
-                  }}
-                />
-              )}
-            </div>
-          )}
-        </div>
-      ))}
-    </Document>
+      {pageDims.map((dim, i) => {
+        const pageHeight = PAGE_WIDTH * (dim.h / dim.w);
+        return (
+          <PageSlot
+            key={i}
+            pageIndex={i}
+            pageWidth={PAGE_WIDTH}
+            pageHeight={pageHeight}
+            offscreenCanvas={getRenderedCanvas(i)}
+            observeElement={trackPageRef}
+          >
+            <BBoxOverlay
+              pageIndex={i}
+              bboxMode={bboxMode}
+              bboxSelections={bboxSelections}
+              highlightTarget={highlightTarget}
+              liveRect={liveRect}
+              dragPage={dragState?.page ?? null}
+              onMouseDown={handleDown}
+              onMouseMove={handleMove}
+              onMouseUp={handleUp}
+              onBackgroundClick={onBackgroundClick}
+            />
+          </PageSlot>
+        );
+      })}
+    </div>
   );
 }
