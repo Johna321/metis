@@ -15,16 +15,17 @@ export type ChatMessage = {
 
 interface ChatMessageBubbleProps {
   msg: ChatMessage;
+  onCitationClick?: (page: number, bbox_norm: [number, number, number, number]) => void;
 }
 
-export function ChatMessageBubble({ msg }: ChatMessageBubbleProps) {
+export function ChatMessageBubble({ msg, onCitationClick }: ChatMessageBubbleProps) {
   return (
     <div className={`chat-bubble chat-bubble--${msg.role}`}>
       <Markdown>{msg.content}</Markdown>
       {msg.evidence && msg.evidence.length > 0 && (
         <div className="citation-list">
           {msg.evidence.map((ev, j) => (
-            <div key={j} className="citation-item" title={ev.text}>
+            <div key={j} className="citation-item" title={ev.text} onClick={() => onCitationClick?.(ev.page, ev.bbox_norm)} style={{ cursor: "pointer" }}>
               <span className={`citation-src citation-src--${TOOL_BADGE[ev.toolName]?.cls ?? "default"}`}>
                 {TOOL_BADGE[ev.toolName]?.label ?? "?"}
               </span>
