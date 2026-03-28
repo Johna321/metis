@@ -5,7 +5,8 @@ from collections import Counter
 from typing import Dict, List, Tuple
 from .schema import Span
 from .store import doc_id_from_bytes, paths, write_json, write_spans_jsonl
-from ..settings import MIN_CHARS
+from .enrich import enrich_visual_spans
+from ..settings import MIN_CHARS, ENABLE_ENRICHMENT
 
 log = logging.getLogger(__name__)
 
@@ -313,6 +314,10 @@ def ingest_pdf_bytes_layout(
         log.info("page %d: %s", page_i, dict(page_counter))
 
     log.info("total spans: %d, region counts: %s", len(spans), dict(total_counter))
+
+    # --- Multimodal enrichment (optional) ---
+    if ENABLE_ENRICHMENT:
+        spans = enrich_visual_spans(spans, pdf_bytes)
 
     meta = {
         "doc_id": doc_id,
