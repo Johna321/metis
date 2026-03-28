@@ -26,3 +26,6 @@ AGENT_TEMPERATURE = float(os.getenv("METIS_AGENT_TEMPERATURE", "0.0"))
 MMR_LAMBDA = float(os.getenv("METIS_MMR_LAMBDA", "0.7"))
 CITATION_MIN_SCORE = float(os.getenv("METIS_CITATION_MIN_SCORE", "0.0"))
 
+# --- Multimodal enrichment ---
+ENABLE_ENRICHMENT = os.getenv("METIS_ENABLE_ENRICHMENT", "true").lower() in ("true", "1", "yes")
+
