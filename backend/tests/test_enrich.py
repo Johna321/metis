@@ -1,11 +1,19 @@
 """Tests for multimodal span enrichment."""
 from __future__ import annotations
 from unittest.mock import patch, MagicMock
+import os
 import pytest
 import pymupdf
 
 from metis.core.schema import Span
 from metis.core.enrich import enrich_visual_spans, _render_bbox, ENRICHABLE_KINDS
+
+pix2text_installed = False
+try:
+    from pix2text import Pix2Text
+    pix2text_installed = True
+except ImportError:
+    pass
 
 
 def _make_span(kind="text", text="Normal text span content here.", **kwargs):
@@ -143,3 +151,46 @@ class TestEnrichVisualSpans:
         assert result[1].content_source == "pix2text_mfr"
         assert result[2].text == "[[PICTURE]]"
         assert result[2].content_source is None
+
+
+@pytest.mark.skipif(not pix2text_installed, reason="pix2text not installed")
+class TestIntegrationEnrichment:
+    def test_formula_enrichment_end_to_end(self, tmp_path, monkeypatch):
+        """Ingest a PDF with a formula region, verify LaTeX extraction."""
+        monkeypatch.setattr("metis.core.store.DATA_DIR", tmp_path)
+        # Reset singleton so real pix2text is loaded
+        import metis.core.enrich as enrich_mod
+        monkeypatch.setattr(enrich_mod, "_p2t_instance", None)
+
+        # Create a PDF with a simple equation
+        doc = pymupdf.open()
+        page = doc.new_page(width=612, height=792)
+        page.insert_text((100, 300), "E = mc²", fontsize=24)
+        pdf_bytes = doc.tobytes()
+
+        from metis.core.store import doc_id_from_bytes
+        doc_id = doc_id_from_bytes(pdf_bytes)
+
+        formula_span = Span(
+            span_id="p000_L0001",
+            doc_id=doc_id,
+            page=0,
+            bbox_pdf=(90.0, 275.0, 250.0, 310.0),
+            bbox_norm=(90.0 / 612, 275.0 / 792, 250.0 / 612, 310.0 / 792),
+            text="𝐸 = 𝑚𝑐2",
+            reading_order=0,
+            kind="formula",
+            source="pymupdf4llm_page_boxes",
+        )
+
+        result = enrich_visual_spans([formula_span], pdf_bytes)
+
+        assert len(result) == 1
+        s = result[0]
+        assert s.content_source == "pix2text_mfr"
+        assert s.original_text == "𝐸 = 𝑚𝑐2"
+        assert "$$" in s.text  # wrapped in $$
+        assert s.asset_path is not None
+        # Verify asset image was saved
+        asset_full = tmp_path / s.asset_path
+        assert asset_full.exists()
