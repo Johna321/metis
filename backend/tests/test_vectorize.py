@@ -42,6 +42,38 @@ def test_filter_removes_placeholder_text():
     assert len(_filter_embeddable(spans)) == 0
 
 
+def test_filter_removes_unenriched_formula():
+    """Formula spans without enrichment (garbled Unicode) should be skipped."""
+    spans = [_make_span(kind="formula", text="∑ 𝑖=1 𝑁 𝑙(𝑦𝑖, ˆ𝑦𝑖)")]
+    assert len(_filter_embeddable(spans)) == 0
+
+
+def test_filter_removes_unenriched_table():
+    """Table spans without enrichment (flat text) should be skipped."""
+    spans = [_make_span(kind="table", text="Method Accuracy Ours 94.2 Baseline 91.0")]
+    assert len(_filter_embeddable(spans)) == 0
+
+
+def test_filter_keeps_enriched_formula():
+    """Formula spans with content_source set (enriched with LaTeX) should pass."""
+    spans = [_make_span(
+        kind="formula",
+        text="$$\\sum_{i=1}^{N} \\ell(y_i, \\hat{y}_i)$$",
+        content_source="pix2text_mfr",
+    )]
+    assert len(_filter_embeddable(spans)) == 1
+
+
+def test_filter_keeps_enriched_table():
+    """Table spans with content_source set (enriched with markdown) should pass."""
+    spans = [_make_span(
+        kind="table",
+        text="| Method | Acc |\n|---|---|\n| Ours | 94.2 |",
+        content_source="pix2text_table",
+    )]
+    assert len(_filter_embeddable(spans)) == 1
+
+
 def _setup_doc(tmp_path, monkeypatch, spans):
     """Write spans to a temp data dir and patch DATA_DIR."""
     monkeypatch.setattr("metis.core.store.DATA_DIR", tmp_path)
