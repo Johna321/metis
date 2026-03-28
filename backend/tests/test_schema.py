@@ -1,4 +1,32 @@
-from metis.core.schema import ToolCall, ToolResult, Message
+from metis.core.schema import Span, ToolCall, ToolResult, Message
+
+
+def test_span_multimodal_fields_default_none():
+    """New multimodal fields default to None, preserving backward compat."""
+    s = Span(
+        span_id="p000_b000", doc_id="sha256:test", page=0,
+        bbox_pdf=(0, 0, 1, 1), bbox_norm=(0, 0, 1, 1),
+        text="Hello world", reading_order=0,
+    )
+    assert s.asset_path is None
+    assert s.content_source is None
+    assert s.original_text is None
+
+
+def test_span_multimodal_fields_set():
+    """New multimodal fields can be set explicitly."""
+    s = Span(
+        span_id="p000_L0010", doc_id="sha256:test", page=0,
+        bbox_pdf=(0, 0, 1, 1), bbox_norm=(0, 0, 1, 1),
+        text="$$E = mc^2$$", reading_order=0,
+        kind="formula",
+        asset_path="sha256_test_assets/images/p000_L0010.png",
+        content_source="pix2text_mfr",
+        original_text="𝐸 = 𝑚𝑐2",
+    )
+    assert s.asset_path == "sha256_test_assets/images/p000_L0010.png"
+    assert s.content_source == "pix2text_mfr"
+    assert s.original_text == "𝐸 = 𝑚𝑐2"
 
 
 def test_tool_call_creation():
