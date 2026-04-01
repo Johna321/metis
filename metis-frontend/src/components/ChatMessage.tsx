@@ -1,4 +1,6 @@
 import Markdown from 'react-markdown'
+import remarkMath from 'remark-math'
+import rehypeMathjax from 'rehype-mathjax'
 import type { EvidenceItem } from "../backend/http";
 
 export const TOOL_BADGE: Record<string, { label: string; cls: string }> = {
@@ -21,7 +23,7 @@ interface ChatMessageBubbleProps {
 export function ChatMessageBubble({ msg, onCitationClick }: ChatMessageBubbleProps) {
   return (
     <div className={`chat-bubble chat-bubble--${msg.role}`}>
-      <Markdown>{msg.content}</Markdown>
+      <Markdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeMathjax]}>{msg.content}</Markdown>
       {msg.evidence && msg.evidence.length > 0 && (
         <div className="citation-list">
           {msg.evidence.map((ev, j) => (
