@@ -23,17 +23,26 @@ export type ChatMessage = {
 type EvidenceWithTool = EvidenceItem & { toolCallId: string; toolName: string };
 
 // ---------------------------------------------------------------------------
-// Citation preprocessing: [page X, span Y] → markdown link [cite](#__cite__X__Y)
+// Citation preprocessing: [page X, span Y, span Z] → markdown link(s)
 // ---------------------------------------------------------------------------
 
-const CITE_RE = /\[page\s+(\d+)(?:,\s*span\s+([\w-]+))?\]/gi;
+// Matches [page X], [page X, span Y], [page X, span Y, span Z], etc.
+const CITE_RE = /\[page\s+(\d+)((?:,\s*span\s+[\w-]+)*)\]/gi;
+const SPAN_ID_RE = /span\s+([\w-]+)/gi;
+
+function extractSpanIds(spanSuffix: string): string[] {
+  return [...spanSuffix.matchAll(SPAN_ID_RE)].map((m) => m[1]);
+}
 
 function preprocessCitations(content: string): string {
-  return content.replace(CITE_RE, (_match, page, spanId) =>
-    spanId
-      ? `[cite](#__cite__${page}__${spanId})`
-      : `[cite](#__cite__${page})`,
-  );
+  return content.replace(CITE_RE, (_match, page, spanSuffix) => {
+    const spanIds = extractSpanIds(spanSuffix || "");
+    if (spanIds.length === 0) {
+      return `[cite](#__cite__${page})`;
+    }
+    // Encode first span_id in the link for the bubble click target
+    return `[cite](#__cite__${page}__${spanIds[0]})`;
+  });
 }
 
 function parseCiteHref(href: string): { page: number; spanId?: string } | null {
@@ -98,9 +107,12 @@ function categorizeEvidence(
 
   for (const m of matches) {
     const pg = parseInt(m[1], 10);
-    const sid = m[2];
-    if (sid) citedSpanIds.add(sid);
-    else pageOnlyCitations.push(pg);
+    const spanIds = extractSpanIds(m[2] || "");
+    if (spanIds.length > 0) {
+      for (const sid of spanIds) citedSpanIds.add(sid);
+    } else {
+      pageOnlyCitations.push(pg);
+    }
   }
 
   const citations: Array<{ page: number; spanId?: string; ev?: EvidenceWithTool }> = [];
