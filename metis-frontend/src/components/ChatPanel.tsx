@@ -3,6 +3,26 @@ import { chatStart } from "../backend/http";
 import type { BBoxSelection } from "./PdfViewer";
 import { ChatMessageBubble, type ChatMessage } from "./ChatMessage";
 
+const TOOL_CALL_GENERIC: Record<string, string> = {
+  rag_retrieve: "Searching paper",
+  read_page: "Reading page",
+  web_search: "Searching the web",
+};
+
+function formatToolCall(name: string, args: unknown): string {
+  const a = args as Record<string, unknown> | null;
+  switch (name) {
+    case "rag_retrieve":
+      return a?.query ? `Searching paper for "${a.query}"` : "Searching paper";
+    case "read_page":
+      return a?.page != null ? `Reading page ${(a.page as number) + 1}` : "Reading page";
+    case "web_search":
+      return a?.query ? `Searching the web for "${a.query}"` : "Searching the web";
+    default:
+      return name;
+  }
+}
+
 interface ChatPanelProps {
   docId: string | null;
   bboxSelections: BBoxSelection[];
@@ -25,6 +45,7 @@ export function ChatPanel({
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [chatInput, setChatInput] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
+  const [activeToolCall, setActiveToolCall] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const unlistenRef = useRef<(() => void) | null>(null);
 
@@ -56,14 +77,20 @@ export function ChatPanel({
     ]);
 
     unlistenRef.current = await chatStart(docId, messageWithContext, {
+      onToolCallStart: (name) => {
+        setActiveToolCall(TOOL_CALL_GENERIC[name] ?? name);
+      },
+      onToolCallDone: (_id, name, args) => {
+        setActiveToolCall(formatToolCall(name, args));
+      },
       onTextDelta: (delta) => {
+        setActiveToolCall(null);
         setMessages(prev => {
           const updated = [...prev];
           const last = updated[updated.length - 1];
           updated[updated.length - 1] = { ...last, content: last.content + delta };
           return updated;
         });
-        console.log(delta);
       },
       onCitationData: (items, toolCallId, toolName) => {
         setMessages(prev => {
@@ -76,11 +103,13 @@ export function ChatPanel({
         });
       },
       onAgentDone: () => {
+        setActiveToolCall(null);
         setIsStreaming(false);
         unlistenRef.current?.();
         unlistenRef.current = null;
       },
       onError: (msg) => {
+        setActiveToolCall(null);
         setMessages(prev => {
           const updated = [...prev];
           updated[updated.length - 1] = { role: "assistant", content: `Error: ${msg}` };
@@ -122,6 +151,9 @@ export function ChatPanel({
                 onCitationClick={onCitationClick}
               />
             ))}
+            {activeToolCall && (
+              <div className="tool-call-indicator">{activeToolCall}</div>
+            )}
             <div ref={messagesEndRef} />
           </div>
           <div className="chat-input-row">
