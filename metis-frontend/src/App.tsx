@@ -8,6 +8,7 @@ import { hashFile, checkDoc, ingestPdf, vectorizeDoc } from "./backend/http";
 import { Toolbar } from "./components/Toolbar";
 import { PdfViewer, type BBoxSelection } from "./components/PdfViewer";
 import { ChatPanel } from "./components/ChatPanel";
+import { Settings } from "./components/Settings";
 
 function App() {
   const [docId, setDocId] = useState<string | null>(null);
@@ -18,6 +19,7 @@ function App() {
   const [bboxSelections, setBboxSelections] = useState<BBoxSelection[]>([]);
   const [isChatMinimized, setIsChatMinimized] = useState(false);
   const [highlightTarget, setHighlightTarget] = useState<{ page: number; bbox_norm: [number, number, number, number] } | null>(null);  // scroll to evidence item
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   async function openPdf() {
     const path = await open({
@@ -82,6 +84,7 @@ function App() {
         numPages={numPages}
         isChatMinimized={isChatMinimized}
         onToggleChatMinimize={() => setIsChatMinimized(!isChatMinimized)}
+        onOpenSettings={() => setIsSettingsOpen(true)}
       />
 
       <div className="main-split">
@@ -110,6 +113,8 @@ function App() {
           onCitationClick={(page, bbox) => setHighlightTarget({ page, bbox_norm: bbox })}
         />
       </div>
+
+      <Settings isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
     </div>
   );
 }
