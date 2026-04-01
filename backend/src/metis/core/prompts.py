@@ -31,7 +31,10 @@ Rules:
 page 0 first.
 - For content questions, use rag_retrieve once or twice, then answer.
 - Do not make more than 3 tool calls per question.
-- Cite specific passages with page numbers.
+- IMPORTANT: Always cite sources. For rag_retrieve results you MUST \
+include the span_id: [page X, span SPAN_ID]. For read_page results \
+use [page X]. Never omit the span_id when citing rag_retrieve results \
+— the UI uses it to highlight the exact passage.
 - Be concise and accurate.
 - If you cannot find the answer, say so.
 - When the user's message includes selected regions, they are pointing \

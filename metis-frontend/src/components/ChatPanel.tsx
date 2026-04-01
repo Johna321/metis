@@ -118,6 +118,7 @@ export function ChatPanel({
                 key={i}
                 msg={msg}
                 isPending={isStreaming && i === messages.length - 1}
+                isStreaming={isStreaming && i === messages.length - 1}
                 onCitationClick={onCitationClick}
               />
             ))}
