@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { IoArrowUp } from "react-icons/io5";
 import { chatStart } from "../backend/http";
 import type { BBoxSelection } from "./PdfViewer";
 import { ChatMessageBubble, type ChatMessage } from "./ChatMessage";
@@ -171,22 +172,24 @@ export function ChatPanel({
                 </button>
               </div>
             )}
-            <textarea
-              className="chat-textarea"
-              value={chatInput}
-              onChange={e => setChatInput(e.target.value)}
-              onKeyDown={handleChatKeyDown}
-              placeholder="Ask about the paper... (Enter to send)"
-              rows={3}
-              disabled={!docId || isStreaming}
-            />
-            <button
-              className="chat-send-btn"
-              onClick={handleSend}
-              disabled={!docId || !chatInput.trim() || isStreaming}
-            >
-              Send
-            </button>
+            <div className="chat-input-wrap">
+              <textarea
+                className="chat-textarea"
+                value={chatInput}
+                onChange={e => setChatInput(e.target.value)}
+                onKeyDown={handleChatKeyDown}
+                placeholder="Ask about the paper... (Enter to send)"
+                rows={3}
+                disabled={!docId || isStreaming}
+              />
+              <button
+                className="chat-send-btn"
+                onClick={handleSend}
+                disabled={!docId || !chatInput.trim() || isStreaming}
+              >
+                <IoArrowUp />
+              </button>
+            </div>
           </div>
         </>
       )}
