@@ -64,8 +64,23 @@ export function PdfViewer({
     PAGE_WIDTH,
     pageRefs.current,
   );
+
+  // calculate page positions (X,Y offset of each page in scroll container)
+  const pagePositions = pageDims.map((_, idx) => {
+    const pageEl = pageRefs.current.get(idx);
+    let x = 0;
+    let y = 0;
+    if (pageEl && scrollContainer) {
+      const pageRect = pageEl.getBoundingClientRect();
+      const scrollRect = scrollContainer.getBoundingClientRect();
+      x = pageRect.left - scrollRect.left + scrollContainer.scrollLeft;
+      y = pageRect.top - scrollRect.top + scrollContainer.scrollTop;
+    }
+    return { x, y };
+  });
+
   const { dragState, liveRect, handleDown, handleMove, handleUp } =
-    useBBoxDrag(pageDims, onBBoxAdd);
+    useBBoxDrag(pageDims, scrollContainer, pagePositions, onBBoxAdd);
 
   // Notify parent of page count
   useEffect(() => {
