@@ -26,8 +26,11 @@
 .chat-bubble--user { align-self: flex-end; background: #2563eb; color: #fff; border-bottom-right-radius: 4px; }
 .chat-bubble--assistant { align-self: flex-start; background: rgba(0,0,0,0.06); border-bottom-left-radius: 4px; }
 .chat-input-row { display: flex; gap: 6px; padding: 8px; border-top: 1px solid rgba(0,0,0,0.1); flex-direction: column; }
-.chat-textarea { flex: 1; resize: none; font-family: inherit; font-size: 13px; padding: 8px 10px; border-radius: 8px; border: 1px solid rgba(0,0,0,0.15); line-height: 1.4; }
-.chat-send-btn { align-self: flex-end; padding: 8px 14px; font-size: 13px; }
+.chat-input-wrap { position: relative; }
+.chat-textarea { width: 100%; resize: none; font-family: inherit; font-size: 13px; padding: 8px 10px; padding-bottom: 36px; border-radius: 12px; border: 1px solid rgba(0,0,0,0.15); line-height: 1.4; }
+.chat-send-btn { position: absolute; bottom: 18px; right: 10px; width: 28px; height: 28px; padding: 0; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 16px; background: #2563eb; color: #fff; border: none; box-shadow: none; cursor: pointer; transition: background 0.15s; }
+.chat-send-btn:hover:not(:disabled) { background: #1d4ed8; }
+.chat-send-btn:disabled { opacity: 0.4; cursor: default; }
 .context-badge { display: flex; align-items: center; gap: 6px; padding: 6px 10px; background: rgba(37, 99, 235, 0.1); border: 1px solid rgba(37, 99, 235, 0.3); border-radius: 6px; font-size: 12px; }
 .context-text { flex: 1; color: #2563eb; font-weight: 500; }
 .context-clear { background: none; border: none; padding: 0; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; font-size: 16px; cursor: pointer; color: #2563eb; opacity: 0.7; transition: opacity 0.2s; }
@@ -51,6 +54,26 @@
 .citation-page { font-weight: 600; white-space: nowrap; color: #2563eb; }
 .citation-score { white-space: nowrap; opacity: 0.6; }
 .citation-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Inline citation bubble */
+.cite-bubble { display: inline-flex; align-items: center; gap: 3px; padding: 1px 6px; margin: 0 1px; background: rgba(37, 99, 235, 0.10); border: 1px solid rgba(37, 99, 235, 0.25); border-radius: 10px; font-size: 11px; font-weight: 600; color: #2563eb; cursor: pointer; vertical-align: baseline; line-height: 1.4; transition: background 0.15s, border-color 0.15s; }
+.cite-bubble:hover { background: rgba(37, 99, 235, 0.18); border-color: rgba(37, 99, 235, 0.4); }
+.cite-bubble svg { flex-shrink: 0; font-size: 12px; }
+
+/* Sources toggle */
+.sources-toggle { display: flex; align-items: center; gap: 6px; margin-top: 8px; padding: 5px 10px; background: rgba(0, 0, 0, 0.04); border: 1px solid rgba(0, 0, 0, 0.1); border-radius: 8px; font-size: 12px; font-weight: 500; color: inherit; cursor: pointer; width: fit-content; transition: background 0.15s; box-shadow: none; }
+.sources-toggle:hover { background: rgba(0, 0, 0, 0.08); }
+.sources-toggle svg { font-size: 14px; }
+.sources-count { background: rgba(0, 0, 0, 0.1); border-radius: 8px; padding: 0 5px; font-size: 10px; font-weight: 600; min-width: 16px; text-align: center; }
+
+/* Sources dropdown */
+.sources-dropdown { margin-top: 6px; border: 1px solid rgba(0, 0, 0, 0.1); border-radius: 8px; overflow: hidden; }
+.sources-section-header { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; padding: 6px 10px 4px; opacity: 0.5; }
+.sources-dropdown .citation-list { margin-top: 0; border-top: none; padding: 0 6px 6px; }
+
+/* Tool call indicator */
+.tool-call-indicator { align-self: flex-start; font-size: 12px; color: inherit; opacity: 0.5; padding: 2px 4px; animation: pulse-opacity 1.5s ease-in-out infinite; }
+@keyframes pulse-opacity { 0%, 100% { opacity: 0.5; } 50% { opacity: 0.9; } }
 
 /* PDF scroll container */
 .pdf-scroll-container {
@@ -126,6 +149,12 @@
   .citation-page { color: #60a5fa; }
   .chat-bubble--assistant { background: rgba(255,255,255,0.08); }
   .chat-bubble--assistant pre, .chat-bubble--assistant code { background: rgba(255,255,255,0.1); }
+  .cite-bubble { background: rgba(96, 165, 250, 0.12); border-color: rgba(96, 165, 250, 0.25); color: #60a5fa; }
+  .cite-bubble:hover { background: rgba(96, 165, 250, 0.22); border-color: rgba(96, 165, 250, 0.4); }
+  .sources-toggle { background: rgba(255, 255, 255, 0.06); border-color: rgba(255, 255, 255, 0.1); }
+  .sources-toggle:hover { background: rgba(255, 255, 255, 0.1); }
+  .sources-count { background: rgba(255, 255, 255, 0.1); }
+  .sources-dropdown { border-color: rgba(255, 255, 255, 0.1); }
   .chat-textarea { background: #0f0f0f98; color: #f6f6f6; border-color: rgba(255,255,255,0.15); }
   .chat-input-row { border-top-color: rgba(255,255,255,0.1); }
   .context-badge { background: rgba(96, 165, 250, 0.1); border-color: rgba(96, 165, 250, 0.3); }

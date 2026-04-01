@@ -1,7 +1,28 @@
 import { useEffect, useRef, useState } from "react";
+import { IoArrowUp } from "react-icons/io5";
 import { chatStart } from "../backend/http";
 import type { BBoxSelection } from "./PdfViewer";
 import { ChatMessageBubble, type ChatMessage } from "./ChatMessage";
+
+const TOOL_CALL_GENERIC: Record<string, string> = {
+  rag_retrieve: "Searching paper",
+  read_page: "Reading page",
+  web_search: "Searching the web",
+};
+
+function formatToolCall(name: string, args: unknown): string {
+  const a = args as Record<string, unknown> | null;
+  switch (name) {
+    case "rag_retrieve":
+      return a?.query ? `Searching paper for "${a.query}"` : "Searching paper";
+    case "read_page":
+      return a?.page != null ? `Reading page ${(a.page as number) + 1}` : "Reading page";
+    case "web_search":
+      return a?.query ? `Searching the web for "${a.query}"` : "Searching the web";
+    default:
+      return name;
+  }
+}
 
 interface ChatPanelProps {
   docId: string | null;
@@ -25,6 +46,7 @@ export function ChatPanel({
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [chatInput, setChatInput] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
+  const [activeToolCall, setActiveToolCall] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const unlistenRef = useRef<(() => void) | null>(null);
 
@@ -56,14 +78,20 @@ export function ChatPanel({
     ]);
 
     unlistenRef.current = await chatStart(docId, messageWithContext, {
+      onToolCallStart: (name) => {
+        setActiveToolCall(TOOL_CALL_GENERIC[name] ?? name);
+      },
+      onToolCallDone: (_id, name, args) => {
+        setActiveToolCall(formatToolCall(name, args));
+      },
       onTextDelta: (delta) => {
+        setActiveToolCall(null);
         setMessages(prev => {
           const updated = [...prev];
           const last = updated[updated.length - 1];
           updated[updated.length - 1] = { ...last, content: last.content + delta };
           return updated;
         });
-        console.log(delta);
       },
       onCitationData: (items, toolCallId, toolName) => {
         setMessages(prev => {
@@ -76,11 +104,13 @@ export function ChatPanel({
         });
       },
       onAgentDone: () => {
+        setActiveToolCall(null);
         setIsStreaming(false);
         unlistenRef.current?.();
         unlistenRef.current = null;
       },
       onError: (msg) => {
+        setActiveToolCall(null);
         setMessages(prev => {
           const updated = [...prev];
           updated[updated.length - 1] = { role: "assistant", content: `Error: ${msg}` };
@@ -114,8 +144,17 @@ export function ChatPanel({
               <div className="panel-empty">Ask a question about the document.</div>
             )}
             {messages.map((msg, i) => (
-              <ChatMessageBubble key={i} msg={msg} onCitationClick={onCitationClick} />
+              <ChatMessageBubble
+                key={i}
+                msg={msg}
+                isPending={isStreaming && i === messages.length - 1}
+                isStreaming={isStreaming && i === messages.length - 1}
+                onCitationClick={onCitationClick}
+              />
             ))}
+            {activeToolCall && (
+              <div className="tool-call-indicator">{activeToolCall}</div>
+            )}
             <div ref={messagesEndRef} />
           </div>
           <div className="chat-input-row">
@@ -133,22 +172,24 @@ export function ChatPanel({
                 </button>
               </div>
             )}
-            <textarea
-              className="chat-textarea"
-              value={chatInput}
-              onChange={e => setChatInput(e.target.value)}
-              onKeyDown={handleChatKeyDown}
-              placeholder="Ask about the paper... (Enter to send)"
-              rows={3}
-              disabled={!docId || isStreaming}
-            />
-            <button
-              className="chat-send-btn"
-              onClick={handleSend}
-              disabled={!docId || !chatInput.trim() || isStreaming}
-            >
-              Send
-            </button>
+            <div className="chat-input-wrap">
+              <textarea
+                className="chat-textarea"
+                value={chatInput}
+                onChange={e => setChatInput(e.target.value)}
+                onKeyDown={handleChatKeyDown}
+                placeholder="Ask about the paper... (Enter to send)"
+                rows={3}
+                disabled={!docId || isStreaming}
+              />
+              <button
+                className="chat-send-btn"
+                onClick={handleSend}
+                disabled={!docId || !chatInput.trim() || isStreaming}
+              >
+                <IoArrowUp />
+              </button>
+            </div>
           </div>
         </>
       )}
