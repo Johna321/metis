@@ -9,6 +9,15 @@ export type {
   ChatStreamEvent,
 } from "./generated_types";
 
+export interface ApiSettings {
+  provider: string;
+  model: string;
+  anthropic_api_key?: string;
+  openai_api_key?: string;
+  openrouter_api_key?: string;
+  tavily_api_key?: string;
+}
+
 import type {
   IngestResponse,
   VectorizeResponse,
@@ -140,4 +149,14 @@ export async function chatStart(
   });
 
   return unlisten;
+}
+
+// Settings management
+
+export async function readSettings(): Promise<ApiSettings> {
+  return invoke("read_settings");
+}
+
+export async function saveSettings(settings: ApiSettings): Promise<void> {
+  return invoke("save_settings", { settings });
 }

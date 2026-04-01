@@ -1,7 +1,9 @@
 import { Quantum } from 'ldrs/react'
-import { Grid } from 'ldrs/react'
 import 'ldrs/react/Quantum.css'
+import { Grid } from 'ldrs/react'
 import 'ldrs/react/Grid.css'
+import { BiSolidCog, BiSolidFilePdf, BiChat } from "react-icons/bi";
+import { BsBoundingBoxCircles } from "react-icons/bs";
 
 interface ToolbarProps {
   onOpenPdf: () => void;
@@ -12,19 +14,23 @@ interface ToolbarProps {
   numPages: number;
   isChatMinimized: boolean;
   onToggleChatMinimize: () => void;
+  onOpenSettings: () => void;
 }
 
-export function Toolbar({ onOpenPdf, onBBoxToggle, bboxMode, docId, status, numPages, isChatMinimized, onToggleChatMinimize }: ToolbarProps) {
+export function Toolbar({ onOpenPdf, onBBoxToggle, bboxMode, docId, status, numPages, isChatMinimized, onToggleChatMinimize, onOpenSettings }: ToolbarProps) {
   return (
     <header className="toolbar">
-      <button onClick={onOpenPdf}>Open PDF</button>
+      <button onClick={onOpenSettings} title="Settings"><BiSolidCog /></button>
+
+      <button onClick={onOpenPdf} title="Open PDF"><BiSolidFilePdf /></button>
 
       <button
         className={`bbox-btn${bboxMode ? " active" : ""}`}
         onClick={onBBoxToggle}
+        title="Bounding Box Selection"
         disabled={!docId}
       >
-        BBox
+        <BsBoundingBoxCircles />
       </button>
 
       <div className="spacer" />
@@ -41,7 +47,7 @@ export function Toolbar({ onOpenPdf, onBBoxToggle, bboxMode, docId, status, numP
         onClick={onToggleChatMinimize}
         title={isChatMinimized ? "Expand chat" : "Minimize chat"}
       >
-        {isChatMinimized ? "◀" : "▶"}
+        {isChatMinimized ? <BiChat /> : "▶"}
       </button>
     </header>
   );

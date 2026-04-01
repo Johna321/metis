@@ -2,7 +2,7 @@ use futures::StreamExt;
 use metis_types::{
     BboxSelection, ChatStreamEvent, EvidenceItem, IngestResponse, VectorizeResponse,
 };
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::sync::Mutex;
 use tauri::{Emitter, Manager};
@@ -17,6 +17,17 @@ struct SidecarHandle {
 }
 
 const BACKEND_URL: &str = "http://127.0.0.1:8000";
+const KEYCHAIN_SERVICE: &str = "metis";
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ApiSettings {
+    pub provider: String,
+    pub model: String,
+    pub anthropic_api_key: Option<String>,
+    pub openai_api_key: Option<String>,
+    pub openrouter_api_key: Option<String>,
+    pub tavily_api_key: Option<String>,
+}
 
 #[derive(Debug, thiserror::Error)]
 pub enum MetisError {
@@ -339,6 +350,93 @@ async fn chat_start(
     Ok(())
 }
 
+#[tauri::command]
+async fn read_settings(_app: tauri::AppHandle) -> Result<ApiSettings, MetisError> {
+    let provider = keyring::Entry::new(KEYCHAIN_SERVICE, "provider")
+        .ok()
+        .and_then(|e| e.get_password().ok())
+        .unwrap_or_else(|| "anthropic".to_string());
+
+    let model = keyring::Entry::new(KEYCHAIN_SERVICE, "model")
+        .ok()
+        .and_then(|e| e.get_password().ok())
+        .unwrap_or_else(|| "claude-sonnet-4-20250514".to_string());
+
+    let anthropic_api_key = keyring::Entry::new(KEYCHAIN_SERVICE, "anthropic_api_key")
+        .ok()
+        .and_then(|e| e.get_password().ok());
+
+    let openai_api_key = keyring::Entry::new(KEYCHAIN_SERVICE, "openai_api_key")
+        .ok()
+        .and_then(|e| e.get_password().ok());
+
+    let openrouter_api_key = keyring::Entry::new(KEYCHAIN_SERVICE, "openrouter_api_key")
+        .ok()
+        .and_then(|e| e.get_password().ok());
+
+    let tavily_api_key = keyring::Entry::new(KEYCHAIN_SERVICE, "tavily_api_key")
+        .ok()
+        .and_then(|e| e.get_password().ok());
+
+    Ok(ApiSettings {
+        provider,
+        model,
+        anthropic_api_key,
+        openai_api_key,
+        openrouter_api_key,
+        tavily_api_key,
+    })
+}
+
+#[tauri::command]
+async fn save_settings(_app: tauri::AppHandle, settings: ApiSettings) -> Result<(), MetisError> {
+    keyring::Entry::new(KEYCHAIN_SERVICE, "provider")
+        .and_then(|e| e.set_password(&settings.provider))
+        .map_err(|e| MetisError::BackendUnavailable(e.to_string()))?;
+
+    keyring::Entry::new(KEYCHAIN_SERVICE, "model")
+        .and_then(|e| e.set_password(&settings.model))
+        .map_err(|e| MetisError::BackendUnavailable(e.to_string()))?;
+
+    if let Some(key) = settings.anthropic_api_key {
+        keyring::Entry::new(KEYCHAIN_SERVICE, "anthropic_api_key")
+            .and_then(|e| e.set_password(&key))
+            .map_err(|e| MetisError::BackendUnavailable(e.to_string()))?;
+    } else {
+        let _ = keyring::Entry::new(KEYCHAIN_SERVICE, "anthropic_api_key")
+            .and_then(|e| e.delete_password());
+    }
+
+    if let Some(key) = settings.openai_api_key {
+        keyring::Entry::new(KEYCHAIN_SERVICE, "openai_api_key")
+            .and_then(|e| e.set_password(&key))
+            .map_err(|e| MetisError::BackendUnavailable(e.to_string()))?;
+    } else {
+        let _ = keyring::Entry::new(KEYCHAIN_SERVICE, "openai_api_key")
+            .and_then(|e| e.delete_password());
+    }
+
+    if let Some(key) = settings.openrouter_api_key {
+        keyring::Entry::new(KEYCHAIN_SERVICE, "openrouter_api_key")
+            .and_then(|e| e.set_password(&key))
+            .map_err(|e| MetisError::BackendUnavailable(e.to_string()))?;
+    } else {
+        let _ = keyring::Entry::new(KEYCHAIN_SERVICE, "openrouter_api_key")
+            .and_then(|e| e.delete_password());
+    }
+
+    if let Some(key) = settings.tavily_api_key {
+        keyring::Entry::new(KEYCHAIN_SERVICE, "tavily_api_key")
+            .and_then(|e| e.set_password(&key))
+            .map_err(|e| MetisError::BackendUnavailable(e.to_string()))?;
+    } else {
+        let _ = keyring::Entry::new(KEYCHAIN_SERVICE, "tavily_api_key")
+            .and_then(|e| e.delete_password());
+    }
+
+    Ok(())
+}
+
 /// App entry point
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -389,6 +487,8 @@ pub fn run() {
             retrieve_evidence,
             get_document_pdf_url,
             chat_start,
+            read_settings,
+            save_settings,
         ])
         .build(tauri::generate_context!())
         .expect("error while building Tauri application")
