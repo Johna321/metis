@@ -30,6 +30,7 @@ interface PdfViewerProps {
   onNumPagesLoad: (n: number) => void;
   onBBoxAdd: (sel: BBoxSelection) => void;
   onBackgroundClick?: () => void;
+  onContextTextChange?: (text: string | null) => void;
 }
 
 export function PdfViewer({
@@ -40,10 +41,12 @@ export function PdfViewer({
   onNumPagesLoad,
   onBBoxAdd,
   onBackgroundClick,
+  onContextTextChange,
 }: PdfViewerProps) {
   const [scrollContainer, setScrollContainer] = useState<HTMLDivElement | null>(
     null
   );
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; text: string } | null>(null);
   const pageRefs = useRef<Map<number, HTMLDivElement>>(new Map());
 
   const { doc, numPages, pageDims, loading, error } = usePdfDocument(pdfUrl);
@@ -94,6 +97,42 @@ export function PdfViewer({
     [observeElement]
   );
 
+  // handle right-click on text selection
+  const handleContextMenu = useCallback(
+    (e: React.MouseEvent) => {
+      const selectedText = window.getSelection()?.toString();
+      if (!selectedText || !onContextTextChange) return;
+
+      e.preventDefault();
+      setContextMenu({
+        x: e.clientX,
+        y: e.clientY,
+        text: selectedText,
+      });
+    },
+    [onContextTextChange]
+  );
+
+  // handle "Add to context" menu item click
+  const handleAddToContext = useCallback(() => {
+    if (!contextMenu || !onContextTextChange) return;
+
+    const maxLength = 5000;
+    const truncatedText =
+      contextMenu.text.length > maxLength ? contextMenu.text.slice(0, maxLength) : contextMenu.text;
+    onContextTextChange(truncatedText);
+    setContextMenu(null);
+  }, [contextMenu, onContextTextChange]);
+
+  // close menu when clicking elsewhere
+  useEffect(() => {
+    if (!contextMenu) return;
+
+    const handleClick = () => setContextMenu(null);
+    document.addEventListener("click", handleClick);
+    return () => document.removeEventListener("click", handleClick);
+  }, [contextMenu]);
+
   if (loading && pageDims.length === 0) {
     return <div className="status">Loading PDF...</div>;
   }
@@ -106,7 +145,24 @@ export function PdfViewer({
     <div
       className="pdf-scroll-container"
       ref={setScrollContainer}
+      onContextMenu={handleContextMenu}
     >
+      {contextMenu && (
+        <div
+          className="context-menu"
+          style={{
+            position: "fixed",
+            top: `${contextMenu.y}px`,
+            left: `${contextMenu.x}px`,
+            zIndex: 1000,
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button className="context-menu-item" onClick={handleAddToContext}>
+            Add to context
+          </button>
+        </div>
+      )}
       {pageDims.map((dim, i) => {
         const pageHeight = PAGE_WIDTH * (dim.h / dim.w);
         return (
