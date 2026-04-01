@@ -91,6 +91,7 @@ function App() {
         <main className="viewer">
           {pdfUrl ? (
             <PdfViewer
+              key={pdfUrl}
               pdfUrl={pdfUrl}
               numPages={numPages}
               bboxMode={bboxMode}

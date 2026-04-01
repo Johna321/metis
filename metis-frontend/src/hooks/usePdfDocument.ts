@@ -29,6 +29,8 @@ export function usePdfDocument(pdfUrl: string | null) {
     async function load() {
       setLoading(true);
       setError(null);
+      setPageDims([]);
+      setNumPages(0);
 
       // Destroy previous document
       if (prevDoc) {
