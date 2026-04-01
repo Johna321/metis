@@ -124,6 +124,14 @@ export function PdfViewer({
     setContextMenu(null);
   }, [contextMenu, onContextTextChange]);
 
+  // handle "Copy" menu item click
+  const handleCopyText = useCallback(() => {
+    if (!contextMenu) return;
+
+    navigator.clipboard.writeText(contextMenu.text);
+    setContextMenu(null);
+  }, [contextMenu]);
+
   // close menu when clicking elsewhere
   useEffect(() => {
     if (!contextMenu) return;
@@ -160,6 +168,9 @@ export function PdfViewer({
         >
           <button className="context-menu-item" onClick={handleAddToContext}>
             Add to context
+          </button>
+          <button className="context-menu-item" onClick={handleCopyText}>
+            Copy
           </button>
         </div>
       )}
