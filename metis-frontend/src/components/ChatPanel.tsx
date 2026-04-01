@@ -114,7 +114,12 @@ export function ChatPanel({
               <div className="panel-empty">Ask a question about the document.</div>
             )}
             {messages.map((msg, i) => (
-              <ChatMessageBubble key={i} msg={msg} onCitationClick={onCitationClick} />
+              <ChatMessageBubble
+                key={i}
+                msg={msg}
+                isPending={isStreaming && i === messages.length - 1}
+                onCitationClick={onCitationClick}
+              />
             ))}
             <div ref={messagesEndRef} />
           </div>

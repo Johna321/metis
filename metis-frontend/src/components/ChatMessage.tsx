@@ -1,6 +1,8 @@
 import Markdown from 'react-markdown'
 import remarkMath from 'remark-math'
 import rehypeMathjax from 'rehype-mathjax'
+import { DotPulse } from 'ldrs/react'
+import 'ldrs/react/DotPulse.css'
 import type { EvidenceItem } from "../backend/http";
 
 export const TOOL_BADGE: Record<string, { label: string; cls: string }> = {
@@ -17,13 +19,17 @@ export type ChatMessage = {
 
 interface ChatMessageBubbleProps {
   msg: ChatMessage;
+  isPending?: boolean;
   onCitationClick?: (page: number, bbox_norm: [number, number, number, number]) => void;
 }
 
-export function ChatMessageBubble({ msg, onCitationClick }: ChatMessageBubbleProps) {
+export function ChatMessageBubble({ msg, isPending, onCitationClick }: ChatMessageBubbleProps) {
   return (
     <div className={`chat-bubble chat-bubble--${msg.role}`}>
-      <Markdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeMathjax]}>{msg.content}</Markdown>
+      {isPending && msg.content === ""
+        ? <DotPulse size={28} speed={1.3} color="currentColor" />
+        : <Markdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeMathjax]}>{msg.content}</Markdown>
+      }
       {msg.evidence && msg.evidence.length > 0 && (
         <div className="citation-list">
           {msg.evidence.map((ev, j) => (
