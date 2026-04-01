@@ -25,9 +25,19 @@
 .chat-bubble--assistant pre code { padding: 0; background: none; }
 .chat-bubble--user { align-self: flex-end; background: #2563eb; color: #fff; border-bottom-right-radius: 4px; }
 .chat-bubble--assistant { align-self: flex-start; background: rgba(0,0,0,0.06); border-bottom-left-radius: 4px; }
-.chat-input-row { display: flex; gap: 6px; padding: 8px; border-top: 1px solid rgba(0,0,0,0.1); }
+.chat-input-row { display: flex; gap: 6px; padding: 8px; border-top: 1px solid rgba(0,0,0,0.1); flex-direction: column; }
 .chat-textarea { flex: 1; resize: none; font-family: inherit; font-size: 13px; padding: 8px 10px; border-radius: 8px; border: 1px solid rgba(0,0,0,0.15); line-height: 1.4; }
 .chat-send-btn { align-self: flex-end; padding: 8px 14px; font-size: 13px; }
+.context-badge { display: flex; align-items: center; gap: 6px; padding: 6px 10px; background: rgba(37, 99, 235, 0.1); border: 1px solid rgba(37, 99, 235, 0.3); border-radius: 6px; font-size: 12px; }
+.context-text { flex: 1; color: #2563eb; font-weight: 500; }
+.context-clear { background: none; border: none; padding: 0; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; font-size: 16px; cursor: pointer; color: #2563eb; opacity: 0.7; transition: opacity 0.2s; }
+.context-clear:hover { opacity: 1; }
+
+/* Context menu */
+.context-menu { background: #ffffff; border: 1px solid rgba(0,0,0,0.15); border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); padding: 4px 0; min-width: 140px; }
+.context-menu-item { display: block; width: 100%; padding: 8px 12px; border: none; background: none; text-align: left; font-size: 13px; cursor: pointer; transition: background 0.15s; }
+.context-menu-item:hover { background: rgba(37, 99, 235, 0.1); }
+.context-menu-item:active { background: rgba(37, 99, 235, 0.2); }
 
 /* Citations */
 .citation-list { margin-top: 8px; border-top: 1px solid rgba(0,0,0,0.1); padding-top: 6px; display: flex; flex-direction: column; gap: 4px; }
@@ -62,7 +72,7 @@
   color: #9ca3af;
 }
 
-/* Text and annotation layers — positioning handled by pdf_viewer.css */
+/* Text and annotation layers - positioning handled by pdf_viewer.css */
 .page-wrap > .textLayer { z-index: 1; }
 .page-wrap > .annotationLayer { z-index: 2; }
 
@@ -118,6 +128,13 @@
   .chat-bubble--assistant pre, .chat-bubble--assistant code { background: rgba(255,255,255,0.1); }
   .chat-textarea { background: #0f0f0f98; color: #f6f6f6; border-color: rgba(255,255,255,0.15); }
   .chat-input-row { border-top-color: rgba(255,255,255,0.1); }
+  .context-badge { background: rgba(96, 165, 250, 0.1); border-color: rgba(96, 165, 250, 0.3); }
+  .context-text { color: #60a5fa; }
+  .context-clear { color: #60a5fa; }
+  .context-menu { background: #1f1f1f; border-color: rgba(255,255,255,0.15); }
+  .context-menu-item { color: #f6f6f6; }
+  .context-menu-item:hover { background: rgba(96, 165, 250, 0.15); }
+  .context-menu-item:active { background: rgba(96, 165, 250, 0.25); }
   .toolbar { background: #282828; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4); }
   .sidepanel { border-left-color: rgba(255,255,255,0.1); }
 }

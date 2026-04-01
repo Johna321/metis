@@ -9,9 +9,19 @@ interface ChatPanelProps {
   onBBoxClear: () => void;
   isMinimized: boolean;
   onCitationClick: (page: number, bbox_norm: [number, number, number, number]) => void;
+  contextText?: string | null;
+  onContextTextChange?: (text: string | null) => void;
 }
 
-export function ChatPanel({ docId, bboxSelections, onBBoxClear, isMinimized, onCitationClick }: ChatPanelProps) {
+export function ChatPanel({
+  docId,
+  bboxSelections,
+  onBBoxClear,
+  isMinimized,
+  onCitationClick,
+  contextText,
+  onContextTextChange,
+}: ChatPanelProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [chatInput, setChatInput] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
@@ -31,13 +41,21 @@ export function ChatPanel({ docId, bboxSelections, onBBoxClear, isMinimized, onC
     unlistenRef.current?.();
     setChatInput("");
     setIsStreaming(true);
+
+    // prepend context if available
+    let messageWithContext = text;
+    if (contextText) {
+      messageWithContext = `Based on the following excerpt from the PDF:\n\n"${contextText}"\n\nMy question: ${text}`;
+      onContextTextChange?.(null);
+    }
+
     setMessages(prev => [
       ...prev,
       { role: "user", content: text },
       { role: "assistant", content: "" },
     ]);
 
-    unlistenRef.current = await chatStart(docId, text, {
+    unlistenRef.current = await chatStart(docId, messageWithContext, {
       onTextDelta: (delta) => {
         setMessages(prev => {
           const updated = [...prev];
@@ -101,6 +119,20 @@ export function ChatPanel({ docId, bboxSelections, onBBoxClear, isMinimized, onC
             <div ref={messagesEndRef} />
           </div>
           <div className="chat-input-row">
+            {contextText && (
+              <div className="context-badge">
+                <span className="context-text" title={"(" + `${contextText.length}` + " chars)"}>
+                  Context added: {contextText.substring(0, 30)}{contextText.length >= 30 && "..."}
+                </span>
+                <button
+                  className="context-clear"
+                  onClick={() => onContextTextChange?.(null)}
+                  title="Remove context"
+                >
+                  ×
+                </button>
+              </div>
+            )}
             <textarea
               className="chat-textarea"
               value={chatInput}

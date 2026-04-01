@@ -20,6 +20,7 @@ function App() {
   const [isChatMinimized, setIsChatMinimized] = useState(false);
   const [highlightTarget, setHighlightTarget] = useState<{ page: number; bbox_norm: [number, number, number, number] } | null>(null);  // scroll to evidence item
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [contextText, setContextText] = useState<string | null>(null);
 
   async function openPdf() {
     const path = await open({
@@ -99,6 +100,7 @@ function App() {
               onNumPagesLoad={setNumPages}
               onBBoxAdd={(sel) => setBboxSelections(prev => [...prev, sel])}
               onBackgroundClick={() => setHighlightTarget(null)}
+              onContextTextChange={setContextText}
             />
           ) : (
             <div className="status">Open a PDF to begin</div>
@@ -111,6 +113,8 @@ function App() {
           onBBoxClear={() => setBboxSelections([])}
           isMinimized={isChatMinimized}
           onCitationClick={(page, bbox) => setHighlightTarget({ page, bbox_norm: bbox })}
+          contextText={contextText}
+          onContextTextChange={setContextText}
         />
       </div>
 
