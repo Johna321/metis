@@ -24,25 +24,43 @@ type EvidenceWithTool = EvidenceItem & { toolCallId: string; toolName: string };
 
 // ---------------------------------------------------------------------------
 // Citation preprocessing: [page X, span Y, span Z] → markdown link(s)
+// Also handles semicolon-delimited multi-page citations like:
+//   [page 2, span p002_L0003; page 12, span p012_L0004]
 // ---------------------------------------------------------------------------
 
-// Matches [page X], [page X, span Y], [page X, span Y, span Z], etc.
+// Matches a single [page X, span ...] citation
 const CITE_RE = /\[page\s+(\d+)((?:,\s*span\s+[\w-]+)*)\]/gi;
+// Matches a multi-page citation: [page X, span Y; page Z, span W; ...]
+const MULTI_CITE_RE =
+  /\[((?:page\s+\d+(?:(?:,\s*span\s+[\w-]+)*);\s*)*page\s+\d+(?:(?:,\s*span\s+[\w-]+)*))\]/gi;
+// Matches individual "page X, span Y" entries within a multi-cite
+const SINGLE_ENTRY_RE = /page\s+(\d+)((?:,\s*span\s+[\w-]+)*)/gi;
 const SPAN_ID_RE = /span\s+([\w-]+)/gi;
 
 function extractSpanIds(spanSuffix: string): string[] {
   return [...spanSuffix.matchAll(SPAN_ID_RE)].map((m) => m[1]);
 }
 
+function citeBubble(page: string, spanSuffix: string): string {
+  const spanIds = extractSpanIds(spanSuffix || "");
+  if (spanIds.length === 0) {
+    return `[cite](#__cite__${page})`;
+  }
+  return `[cite](#__cite__${page}__${spanIds[0]})`;
+}
+
 function preprocessCitations(content: string): string {
-  return content.replace(CITE_RE, (_match, page, spanSuffix) => {
-    const spanIds = extractSpanIds(spanSuffix || "");
-    if (spanIds.length === 0) {
-      return `[cite](#__cite__${page})`;
-    }
-    // Encode first span_id in the link for the bubble click target
-    return `[cite](#__cite__${page}__${spanIds[0]})`;
+  // First pass: replace multi-page citations (with semicolons)
+  let result = content.replace(MULTI_CITE_RE, (match) => {
+    const entries = [...match.matchAll(SINGLE_ENTRY_RE)];
+    if (entries.length <= 1) return match; // Let single-cite regex handle it
+    return entries.map((e) => citeBubble(e[1], e[2] || "")).join("");
   });
+  // Second pass: replace remaining single-page citations
+  result = result.replace(CITE_RE, (_match, page, spanSuffix) => {
+    return citeBubble(page, spanSuffix || "");
+  });
+  return result;
 }
 
 function parseCiteHref(href: string): { page: number; spanId?: string } | null {
@@ -101,18 +119,29 @@ function categorizeEvidence(
   citations: Array<{ page: number; spanId?: string; ev?: EvidenceWithTool }>;
   remaining: EvidenceWithTool[];
 } {
-  const matches = [...content.matchAll(CITE_RE)];
+  // Collect all page/span references from both single and multi-page citations
   const citedSpanIds = new Set<string>();
   const pageOnlyCitations: number[] = [];
 
-  for (const m of matches) {
-    const pg = parseInt(m[1], 10);
-    const spanIds = extractSpanIds(m[2] || "");
+  function collectEntry(page: string, spanSuffix: string) {
+    const pg = parseInt(page, 10);
+    const spanIds = extractSpanIds(spanSuffix || "");
     if (spanIds.length > 0) {
       for (const sid of spanIds) citedSpanIds.add(sid);
     } else {
       pageOnlyCitations.push(pg);
     }
+  }
+
+  // Multi-page citations (semicolon-delimited)
+  for (const m of content.matchAll(MULTI_CITE_RE)) {
+    for (const entry of m[0].matchAll(SINGLE_ENTRY_RE)) {
+      collectEntry(entry[1], entry[2] || "");
+    }
+  }
+  // Single-page citations
+  for (const m of content.matchAll(CITE_RE)) {
+    collectEntry(m[1], m[2] || "");
   }
 
   const citations: Array<{ page: number; spanId?: string; ev?: EvidenceWithTool }> = [];
