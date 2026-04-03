@@ -1,5 +1,6 @@
 import { useState } from "react";
 import Markdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import rehypeMathjax from "rehype-mathjax";
 import { DotPulse } from "ldrs/react";
@@ -285,7 +286,7 @@ export function ChatMessageBubble({ msg, isPending, isStreaming, onCitationClick
         <DotPulse size={28} speed={1.3} color="currentColor" />
       ) : (
         <Markdown
-          remarkPlugins={[[remarkMath, { singleDollarTextMath: false }]]}
+          remarkPlugins={[remarkGfm, [remarkMath, { singleDollarTextMath: false }]]}
           rehypePlugins={[rehypeMathjax]}
           components={{
             a: ({ href, children, ...props }) => {
