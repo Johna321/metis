@@ -48,11 +48,22 @@ export function ChatPanel({
   const [isStreaming, setIsStreaming] = useState(false);
   const [activeToolCall, setActiveToolCall] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const chatMessagesRef = useRef<HTMLDivElement>(null);
   const unlistenRef = useRef<(() => void) | null>(null);
+  const isStuckToBottom = useRef(true);
+
+  function handleMessagesScroll() {
+    const el = chatMessagesRef.current;
+    if (!el) return;
+    // Consider "at bottom" if within 40px of the bottom
+    isStuckToBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
+  }
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+    if (isStuckToBottom.current) {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [messages, activeToolCall]);
 
   useEffect(() => () => { unlistenRef.current?.(); }, []);
 
@@ -63,6 +74,7 @@ export function ChatPanel({
     unlistenRef.current?.();
     setChatInput("");
     setIsStreaming(true);
+    isStuckToBottom.current = true;
 
     // prepend context if available
     let messageWithContext = text;
@@ -139,7 +151,7 @@ export function ChatPanel({
     <aside className={`sidepanel ${isMinimized ? "minimized" : ""}`}>
       {!isMinimized && (
         <>
-          <div className="chat-messages">
+          <div className="chat-messages" ref={chatMessagesRef} onScroll={handleMessagesScroll}>
             {messages.length === 0 && (
               <div className="panel-empty">Ask a question about the document.</div>
             )}
