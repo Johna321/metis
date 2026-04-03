@@ -11,6 +11,7 @@
 /* Chat */
 .chat-messages { flex: 1; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
 .chat-bubble { max-width: 90%; padding: 8px 12px; border-radius: 12px; font-size: 13px; line-height: 1.5; word-break: break-word; }
+.chat-bubble mjx-container { overflow-x: auto; max-width: 100%; display: inline-block; }
 
 /* Compact markdown inside assistant bubbles */
 .chat-bubble--assistant p { margin: 0.3em 0; }
@@ -23,6 +24,9 @@
 .chat-bubble--assistant pre { margin: 0.4em 0; padding: 8px; border-radius: 6px; background: rgba(0,0,0,0.08); overflow-x: auto; font-size: 12px; }
 .chat-bubble--assistant code { font-size: 12px; padding: 0.1em 0.3em; border-radius: 3px; background: rgba(0,0,0,0.08); }
 .chat-bubble--assistant pre code { padding: 0; background: none; }
+.chat-bubble--assistant table { border-collapse: collapse; margin: 0.4em 0; font-size: 12px; width: 100%; overflow-x: auto; display: block; }
+.chat-bubble--assistant th, .chat-bubble--assistant td { border: 1px solid rgba(0,0,0,0.15); padding: 4px 8px; text-align: left; }
+.chat-bubble--assistant th { background: rgba(0,0,0,0.06); font-weight: 600; }
 .chat-bubble--user { align-self: flex-end; background: #2563eb; color: #fff; border-bottom-right-radius: 4px; }
 .chat-bubble--assistant { align-self: flex-start; background: rgba(0,0,0,0.06); border-bottom-left-radius: 4px; }
 .chat-input-row { display: flex; gap: 6px; padding: 8px; border-top: 1px solid rgba(0,0,0,0.1); flex-direction: column; }
@@ -149,6 +153,8 @@
   .citation-page { color: #60a5fa; }
   .chat-bubble--assistant { background: rgba(255,255,255,0.08); }
   .chat-bubble--assistant pre, .chat-bubble--assistant code { background: rgba(255,255,255,0.1); }
+  .chat-bubble--assistant th, .chat-bubble--assistant td { border-color: rgba(255,255,255,0.15); }
+  .chat-bubble--assistant th { background: rgba(255,255,255,0.08); }
   .cite-bubble { background: rgba(96, 165, 250, 0.12); border-color: rgba(96, 165, 250, 0.25); color: #60a5fa; }
   .cite-bubble:hover { background: rgba(96, 165, 250, 0.22); border-color: rgba(96, 165, 250, 0.4); }
   .sources-toggle { background: rgba(255, 255, 255, 0.06); border-color: rgba(255, 255, 255, 0.1); }
