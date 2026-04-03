@@ -285,7 +285,7 @@ export function ChatMessageBubble({ msg, isPending, isStreaming, onCitationClick
         <DotPulse size={28} speed={1.3} color="currentColor" />
       ) : (
         <Markdown
-          remarkPlugins={[remarkMath]}
+          remarkPlugins={[[remarkMath, { singleDollarTextMath: false }]]}
           rehypePlugins={[rehypeMathjax]}
           components={{
             a: ({ href, children, ...props }) => {

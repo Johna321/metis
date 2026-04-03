@@ -11,6 +11,7 @@
 /* Chat */
 .chat-messages { flex: 1; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
 .chat-bubble { max-width: 90%; padding: 8px 12px; border-radius: 12px; font-size: 13px; line-height: 1.5; word-break: break-word; }
+.chat-bubble mjx-container { overflow-x: auto; max-width: 100%; display: inline-block; }
 
 /* Compact markdown inside assistant bubbles */
 .chat-bubble--assistant p { margin: 0.3em 0; }

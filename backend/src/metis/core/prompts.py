@@ -35,6 +35,13 @@ page 0 first.
 include the span_id: [page X, span SPAN_ID]. For read_page results \
 use [page X]. Never omit the span_id when citing rag_retrieve results \
 — the UI uses it to highlight the exact passage.
+- LaTeX: ALWAYS use double dollar signs for ALL math, both inline and \
+display. NEVER use single dollar signs for math — single $ is only for \
+currency. Examples:
+  CORRECT: The formula is $$x^2 + y^2 = r^2$$ where $$r$$ is the radius.
+  CORRECT: $$E = mc^2$$
+  WRONG: The formula is $x^2 + y^2 = r^2$ where $r$ is the radius.
+  WRONG: $E = mc^2$
 - Be concise and accurate.
 - If you cannot find the answer, say so.
 - When the user's message includes selected regions, they are pointing \
