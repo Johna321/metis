@@ -24,7 +24,7 @@ cd "$ROOT/metis-frontend"
 
 HEADER
   # Process schemas in dependency order (BboxSelection before ChatRequest)
-  for schema in BboxSelection IngestResponse VectorizeResponse EvidenceItem ChatRequest ChatStreamEvent; do
+  for schema in BboxSelection IngestResponse VectorizeResponse EvidenceItem ConversationMeta ConversationMessage ConversationFull ChatRequest ChatStreamEvent; do
     bun run json2ts \
       -i "$SCHEMA_DIR/${schema}.json" \
       --no-additionalProperties \

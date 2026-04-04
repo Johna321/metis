@@ -1,52 +1,41 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "ChatRequest",
+  "title": "ConversationMessage",
   "type": "object",
   "required": [
-    "doc_id",
-    "message"
+    "content",
+    "role",
+    "timestamp"
   ],
   "properties": {
-    "conv_id": {
-      "type": [
-        "string",
-        "null"
-      ]
-    },
-    "doc_id": {
+    "content": {
       "type": "string"
     },
-    "message": {
-      "type": "string"
-    },
-    "model": {
-      "type": [
-        "string",
-        "null"
-      ]
-    },
-    "provider": {
-      "type": [
-        "string",
-        "null"
-      ]
-    },
-    "selections": {
+    "evidence": {
       "type": [
         "array",
         "null"
       ],
       "items": {
-        "$ref": "#/definitions/BboxSelection"
+        "$ref": "#/definitions/EvidenceItem"
       }
+    },
+    "role": {
+      "type": "string"
+    },
+    "timestamp": {
+      "type": "string"
     }
   },
   "definitions": {
-    "BboxSelection": {
+    "EvidenceItem": {
       "type": "object",
       "required": [
         "bbox_norm",
-        "page"
+        "page",
+        "score",
+        "span_id",
+        "text"
       ],
       "properties": {
         "bbox_norm": {
@@ -62,6 +51,16 @@
           "type": "integer",
           "format": "uint32",
           "minimum": 0.0
+        },
+        "score": {
+          "type": "number",
+          "format": "double"
+        },
+        "span_id": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
         }
       }
     }
