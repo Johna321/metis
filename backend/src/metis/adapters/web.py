@@ -29,7 +29,7 @@ from ..core.ingest import ingest_pdf_bytes, ingest_pdf_bytes_layout
 from ..core.llm import AnthropicModel, OpenAIModel, OpenRouterModel, StreamEvent
 from ..core.prompts import SYSTEM_PROMPT, format_query_with_selections
 from ..core.retrieve import resolve_selections, retrieve
-from ..core.store import paths
+from ..core.store import paths, conv_path, read_conversations, create_conversation, update_conversation, delete_conversation, read_messages, append_message
 from ..core.tools import ToolRegistry, make_rag_retrieve_tool, make_read_page_tool, make_web_search_tool
 from ..core.vectorize import retrieve_semantic, vectorize_spans
 from ..settings import (
@@ -81,6 +81,11 @@ class SemanticRetrieveRequest(BaseModel):
     query: str
     page: Optional[int] = None
     top_k: Optional[int] = None
+
+
+class ConversationUpdateRequest(BaseModel):
+    title: Optional[str] = None
+    pinned: Optional[bool] = None
 
 
 # ---------------------------------------------------------------------------
@@ -199,6 +204,49 @@ async def get_document_pdf(doc_id: str):
     if not p["pdf"].exists():
         raise HTTPException(status_code=404, detail=f"Document not found: {doc_id}")
     return FileResponse(p["pdf"], media_type="application/pdf")
+
+
+@app.get("/documents/{doc_id}/conversations")
+def list_conversations(doc_id: str):
+    p = paths(doc_id)
+    if not p["doc"].exists():
+        raise HTTPException(status_code=404, detail=f"Document not found: {doc_id}")
+    return {"conversations": read_conversations(doc_id)}
+
+
+@app.post("/documents/{doc_id}/conversations")
+def create_conversation_endpoint(doc_id: str):
+    p = paths(doc_id)
+    if not p["doc"].exists():
+        raise HTTPException(status_code=404, detail=f"Document not found: {doc_id}")
+    return create_conversation(doc_id)
+
+
+@app.get("/documents/{doc_id}/conversations/{conv_id}")
+def get_conversation(doc_id: str, conv_id: str):
+    p = paths(doc_id)
+    if not p["doc"].exists():
+        raise HTTPException(status_code=404, detail=f"Document not found: {doc_id}")
+    convs = read_conversations(doc_id)
+    meta = next((c for c in convs if c["id"] == conv_id), None)
+    if meta is None:
+        raise HTTPException(status_code=404, detail=f"Conversation not found: {conv_id}")
+    messages = read_messages(doc_id, conv_id)
+    return {"id": meta["id"], "title": meta["title"], "pinned": meta["pinned"], "messages": messages}
+
+
+@app.patch("/documents/{doc_id}/conversations/{conv_id}")
+def update_conversation_endpoint(doc_id: str, conv_id: str, req: ConversationUpdateRequest):
+    try:
+        return update_conversation(doc_id, conv_id, title=req.title, pinned=req.pinned)
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail=f"Conversation not found: {conv_id}")
+
+
+@app.delete("/documents/{doc_id}/conversations/{conv_id}", status_code=204)
+def delete_conversation_endpoint(doc_id: str, conv_id: str):
+    delete_conversation(doc_id, conv_id)
+    return Response(status_code=204)
 
 
 @app.post("/chat", response_class=EventSourceResponse)
