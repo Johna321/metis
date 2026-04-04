@@ -47,3 +47,18 @@ class Message:
     tool_calls: Optional[List[ToolCall]] = None
     tool_results: Optional[List[ToolResult]] = None
 
+@dataclass(frozen=True)
+class ConversationMeta:
+    id: str
+    title: str
+    pinned: bool
+    created_at: str
+    updated_at: str
+
+@dataclass(frozen=True)
+class ConversationMessage:
+    role: str
+    content: str
+    timestamp: str
+    evidence: list | None = None
+
