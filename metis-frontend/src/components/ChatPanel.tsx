@@ -1,8 +1,17 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { IoArrowUp } from "react-icons/io5";
-import { chatStart } from "../backend/http";
+import {
+  chatStart,
+  listConversations,
+  createConversation,
+  getConversation,
+  updateConversation,
+  deleteConversation,
+} from "../backend/http";
 import type { BBoxSelection } from "./PdfViewer";
+import type { ConversationMeta } from "../backend/http";
 import { ChatMessageBubble, type ChatMessage } from "./ChatMessage";
+import { ConversationList } from "./ConversationList";
 
 const TOOL_CALL_GENERIC: Record<string, string> = {
   rag_retrieve: "Searching paper",
@@ -52,6 +61,10 @@ export function ChatPanel({
   const unlistenRef = useRef<(() => void) | null>(null);
   const isStuckToBottom = useRef(true);
 
+  const [conversations, setConversations] = useState<ConversationMeta[]>([]);
+  const [activeConvId, setActiveConvId] = useState<string | null>(null);
+  const [isConvListCollapsed, setIsConvListCollapsed] = useState(false);
+
   function handleMessagesScroll() {
     const el = chatMessagesRef.current;
     if (!el) return;
@@ -66,6 +79,69 @@ export function ChatPanel({
   }, [messages, activeToolCall]);
 
   useEffect(() => () => { unlistenRef.current?.(); }, []);
+
+  // Fetch conversation list when docId changes
+  useEffect(() => {
+    if (!docId) {
+      setConversations([]);
+      setActiveConvId(null);
+      setMessages([]);
+      return;
+    }
+    listConversations(docId).then(res => {
+      setConversations(res.conversations);
+    }).catch(console.error);
+  }, [docId]);
+
+  // Load messages when active conversation changes
+  useEffect(() => {
+    if (!docId || !activeConvId) {
+      setMessages([]);
+      return;
+    }
+    getConversation(docId, activeConvId).then(res => {
+      setMessages(res.messages.map(m => ({
+        role: m.role as "user" | "assistant",
+        content: m.content,
+        evidence: (m.evidence ?? undefined) as ChatMessage["evidence"],
+      })));
+    }).catch(console.error);
+  }, [docId, activeConvId]);
+
+  const refreshConversations = useCallback(() => {
+    if (!docId) return;
+    listConversations(docId).then(res => setConversations(res.conversations)).catch(console.error);
+  }, [docId]);
+
+  async function handleCreateConversation() {
+    if (!docId) return;
+    const conv = await createConversation(docId);
+    setActiveConvId(conv.id);
+    setMessages([]);
+    refreshConversations();
+  }
+
+  async function handleRename(convId: string, title: string) {
+    if (!docId) return;
+    await updateConversation(docId, convId, { title });
+    refreshConversations();
+  }
+
+  async function handleDelete(convId: string) {
+    if (!docId) return;
+    await deleteConversation(docId, convId);
+    if (activeConvId === convId) {
+      setActiveConvId(null);
+      setMessages([]);
+    }
+    refreshConversations();
+  }
+
+  async function handlePin(convId: string, pinned: boolean) {
+    if (!docId) return;
+    await updateConversation(docId, convId, { pinned });
+    refreshConversations();
+  }
 
   async function handleSend() {
     const text = chatInput.trim();
@@ -115,11 +191,15 @@ export function ChatPanel({
           return updated;
         });
       },
+      onTitleUpdate: (_convId, _title) => {
+        refreshConversations();
+      },
       onAgentDone: () => {
         setActiveToolCall(null);
         setIsStreaming(false);
         unlistenRef.current?.();
         unlistenRef.current = null;
+        refreshConversations();
       },
       onError: (msg) => {
         setActiveToolCall(null);
@@ -132,10 +212,10 @@ export function ChatPanel({
         unlistenRef.current?.();
         unlistenRef.current = null;
       },
-    }, bboxSelections.length > 0
-      ? { selections: bboxSelections.map(s => ({ page: s.page, bbox_norm: s.bbox_norm })) }
-      : undefined,
-    );
+    }, {
+      ...(bboxSelections.length > 0 ? { selections: bboxSelections.map(s => ({ page: s.page, bbox_norm: s.bbox_norm })) } : {}),
+      convId: activeConvId ?? undefined,
+    });
 
     onBBoxClear();
   }
@@ -151,58 +231,85 @@ export function ChatPanel({
     <aside className={`sidepanel ${isMinimized ? "minimized" : ""}`}>
       {!isMinimized && (
         <>
-          <div className="chat-messages" ref={chatMessagesRef} onScroll={handleMessagesScroll}>
-            {messages.length === 0 && (
-              <div className="panel-empty">Ask a question about the document.</div>
-            )}
-            {messages.map((msg, i) => (
-              <ChatMessageBubble
-                key={i}
-                msg={msg}
-                isPending={isStreaming && i === messages.length - 1}
-                isStreaming={isStreaming && i === messages.length - 1}
-                onCitationClick={onCitationClick}
-              />
-            ))}
-            {activeToolCall && (
-              <div className="tool-call-indicator">{activeToolCall}</div>
-            )}
-            <div ref={messagesEndRef} />
-          </div>
-          <div className="chat-input-row">
-            {contextText && (
-              <div className="context-badge">
-                <span className="context-text" title={"(" + `${contextText.length}` + " chars)"}>
-                  Context added: {contextText.substring(0, 30)}{contextText.length >= 30 && "..."}
-                </span>
-                <button
-                  className="context-clear"
-                  onClick={() => onContextTextChange?.(null)}
-                  title="Remove context"
-                >
-                  ×
-                </button>
-              </div>
-            )}
-            <div className="chat-input-wrap">
-              <textarea
-                className="chat-textarea"
-                value={chatInput}
-                onChange={e => setChatInput(e.target.value)}
-                onKeyDown={handleChatKeyDown}
-                placeholder="Ask about the paper... (Enter to send)"
-                rows={3}
-                disabled={!docId || isStreaming}
-              />
-              <button
-                className="chat-send-btn"
-                onClick={handleSend}
-                disabled={!docId || !chatInput.trim() || isStreaming}
-              >
-                <IoArrowUp />
-              </button>
+          {docId && (
+            <ConversationList
+              conversations={conversations}
+              activeConvId={activeConvId}
+              isCollapsed={isConvListCollapsed}
+              onSelect={setActiveConvId}
+              onCreate={handleCreateConversation}
+              onRename={handleRename}
+              onDelete={handleDelete}
+              onPin={handlePin}
+              onToggleCollapse={() => setIsConvListCollapsed(!isConvListCollapsed)}
+            />
+          )}
+
+          {!docId ? (
+            <div className="panel-empty">Open a PDF to start chatting.</div>
+          ) : !activeConvId ? (
+            <div className="conv-empty-state">
+              <div className="conv-empty-state-icon">&#128172;</div>
+              <div className="conv-empty-state-title">No conversation selected</div>
+              <div className="conv-empty-state-subtitle">Start a conversation to ask questions about this paper</div>
+              <button className="conv-empty-state-btn" onClick={handleCreateConversation}>New Conversation</button>
             </div>
-          </div>
+          ) : (
+            <>
+              <div className="chat-messages" ref={chatMessagesRef} onScroll={handleMessagesScroll}>
+                {messages.length === 0 && (
+                  <div className="panel-empty">Ask a question about the document.</div>
+                )}
+                {messages.map((msg, i) => (
+                  <ChatMessageBubble
+                    key={i}
+                    msg={msg}
+                    isPending={isStreaming && i === messages.length - 1}
+                    isStreaming={isStreaming && i === messages.length - 1}
+                    onCitationClick={onCitationClick}
+                  />
+                ))}
+                {activeToolCall && (
+                  <div className="tool-call-indicator">{activeToolCall}</div>
+                )}
+                <div ref={messagesEndRef} />
+              </div>
+              <div className="chat-input-row">
+                {contextText && (
+                  <div className="context-badge">
+                    <span className="context-text" title={"(" + `${contextText.length}` + " chars)"}>
+                      Context added: {contextText.substring(0, 30)}{contextText.length >= 30 && "..."}
+                    </span>
+                    <button
+                      className="context-clear"
+                      onClick={() => onContextTextChange?.(null)}
+                      title="Remove context"
+                    >
+                      x
+                    </button>
+                  </div>
+                )}
+                <div className="chat-input-wrap">
+                  <textarea
+                    className="chat-textarea"
+                    value={chatInput}
+                    onChange={e => setChatInput(e.target.value)}
+                    onKeyDown={handleChatKeyDown}
+                    placeholder="Ask about the paper... (Enter to send)"
+                    rows={3}
+                    disabled={!docId || !activeConvId || isStreaming}
+                  />
+                  <button
+                    className="chat-send-btn"
+                    onClick={handleSend}
+                    disabled={!docId || !activeConvId || !chatInput.trim() || isStreaming}
+                  >
+                    <IoArrowUp />
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
         </>
       )}
     </aside>
