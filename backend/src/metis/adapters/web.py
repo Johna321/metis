@@ -119,6 +119,8 @@ def _stream_event_to_sse(event: StreamEvent) -> ServerSentEvent | None:
         return ServerSentEvent(data=payload, event="message_done")
     elif event.kind == "citation_data" and event.evidence:
         return ServerSentEvent(data={"tool_call_id": event.tool_call_id, "tool_name": event.tool_name, "items": event.evidence}, event="citation_data")
+    elif event.kind == "title_update":
+        return ServerSentEvent(data={"conv_id": event.tool_call_id, "title": event.text}, event="title_update")
     elif event.kind == "agent_done":
         return ServerSentEvent(data={}, event="agent_done")
     return None
@@ -320,9 +322,11 @@ def chat_endpoint(req: ChatRequest) -> Iterable[ServerSentEvent]:
         try:
             run_agent(
                 model=llm,
+                doc_id=req.doc_id,
                 user_query=enriched_query,
                 tools=registry,
                 system_prompt=SYSTEM_PROMPT,
+                conv_id=req.conv_id,
                 max_iterations=AGENT_MAX_ITER,
                 on_stream=on_stream,
             )
