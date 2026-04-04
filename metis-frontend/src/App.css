@@ -5,6 +5,42 @@
 .viewer { flex: 1; overflow: auto; padding: 16px; display: flex; justify-content: center; min-height: 0; }
 .sidepanel { width: 360px; border-left: 1px solid rgba(0,0,0,0.1); display: flex; flex-direction: column; min-height: 0; transition: width 0.3s ease; }
 .sidepanel.minimized { width: 50px; }
+
+/* Conversation list */
+.conv-list { width: 200px; border-right: 1px solid rgba(0,0,0,0.1); display: flex; flex-direction: column; flex-shrink: 0; overflow-y: auto; transition: width 0.2s ease; }
+.conv-list--collapsed { width: 28px; align-items: center; padding-top: 8px; gap: 6px; }
+.conv-list-header { padding: 8px 10px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(0,0,0,0.06); }
+.conv-list-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; opacity: 0.5; font-weight: 600; }
+.conv-list-actions { display: flex; gap: 4px; align-items: center; }
+.conv-new-btn-icon { background: none; border: none; font-size: 16px; cursor: pointer; color: #2563eb; padding: 0 4px; box-shadow: none; }
+.conv-collapse-btn { background: none; border: none; font-size: 10px; cursor: pointer; opacity: 0.5; padding: 2px 4px; box-shadow: none; }
+.conv-collapse-btn:hover { opacity: 1; }
+.conv-list-items { flex: 1; overflow-y: auto; }
+.conv-section-label { font-size: 9px; text-transform: uppercase; letter-spacing: 0.5px; opacity: 0.4; padding: 6px 10px 2px; font-weight: 600; }
+.conv-item { display: flex; align-items: flex-start; gap: 6px; padding: 6px 10px; cursor: pointer; transition: background 0.15s; font-size: 12px; }
+.conv-item:hover { background: rgba(0,0,0,0.04); }
+.conv-item--active { background: rgba(37, 99, 235, 0.08); border-left: 2px solid #2563eb; }
+.conv-pin-icon { font-size: 9px; color: #f0c040; width: 12px; flex-shrink: 0; padding-top: 2px; }
+.conv-item-content { flex: 1; min-width: 0; }
+.conv-item-title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.conv-item-meta { font-size: 9px; opacity: 0.5; margin-top: 1px; }
+.conv-rename-input { width: 100%; font-size: 12px; padding: 2px 4px; border: 1px solid #2563eb; border-radius: 3px; font-family: inherit; }
+.conv-empty { padding: 12px 10px; font-size: 12px; opacity: 0.5; }
+.conv-context-menu { background: #fff; border: 1px solid rgba(0,0,0,0.15); border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); padding: 4px 0; min-width: 160px; }
+.conv-context-item { display: block; width: 100%; padding: 6px 12px; border: none; background: none; text-align: left; font-size: 12px; cursor: pointer; }
+.conv-context-item:hover { background: rgba(37, 99, 235, 0.1); }
+.conv-context-item--danger { color: #dc2626; }
+.conv-context-item--danger:hover { background: rgba(220, 38, 38, 0.1); }
+.conv-context-divider { height: 1px; background: rgba(0,0,0,0.1); margin: 2px 0; }
+
+/* Empty state for chat */
+.conv-empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; flex: 1; gap: 8px; padding: 20px; text-align: center; }
+.conv-empty-state-icon { font-size: 32px; opacity: 0.3; }
+.conv-empty-state-title { font-size: 14px; opacity: 0.7; }
+.conv-empty-state-subtitle { font-size: 12px; opacity: 0.5; }
+.conv-empty-state-btn { background: #2563eb; color: #fff; border: none; border-radius: 8px; padding: 8px 18px; font-size: 13px; cursor: pointer; margin-top: 8px; }
+.conv-empty-state-btn:hover { background: #1d4ed8; }
+
 .chat-minimize-btn { padding: 6px 8px; font-size: 12px; margin-left: 6px; }
 .panel-empty { padding: 12px; opacity: 0.7; font-size: 13px; }
 
@@ -172,6 +208,17 @@
   .context-menu-item:active { background: rgba(96, 165, 250, 0.25); }
   .toolbar { background: #282828; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4); }
   .sidepanel { border-left-color: rgba(255,255,255,0.1); }
+  .conv-list { border-right-color: rgba(255,255,255,0.1); }
+  .conv-list-header { border-bottom-color: rgba(255,255,255,0.06); }
+  .conv-item:hover { background: rgba(255,255,255,0.04); }
+  .conv-item--active { background: rgba(96, 165, 250, 0.1); }
+  .conv-rename-input { background: #0f0f0f; color: #f6f6f6; border-color: #60a5fa; }
+  .conv-context-menu { background: #1f1f1f; border-color: rgba(255,255,255,0.15); }
+  .conv-context-item { color: #f6f6f6; }
+  .conv-context-item:hover { background: rgba(96, 165, 250, 0.15); }
+  .conv-context-item--danger { color: #f87171; }
+  .conv-context-item--danger:hover { background: rgba(248, 113, 113, 0.15); }
+  .conv-context-divider { background: rgba(255,255,255,0.1); }
 }
 
 
