@@ -39,7 +39,34 @@ export interface EvidenceItem {
 }
 
 
+export interface ConversationMeta {
+  created_at: string;
+  id: string;
+  message_count: number;
+  pinned: boolean;
+  title: string;
+  updated_at: string;
+}
+
+
+export interface ConversationMessage {
+  content: string;
+  evidence?: EvidenceItem[] | null;
+  role: string;
+  timestamp: string;
+}
+
+
+export interface ConversationFull {
+  id: string;
+  messages: ConversationMessage[];
+  pinned: boolean;
+  title: string;
+}
+
+
 export interface ChatRequest {
+  conv_id?: string | null;
   doc_id: string;
   message: string;
   model?: string | null;
@@ -78,6 +105,11 @@ export type ChatStreamEvent =
       kind: "CitationData";
       tool_call_id: string;
       tool_name: string;
+    }
+  | {
+      conv_id: string;
+      kind: "TitleUpdate";
+      title: string;
     }
   | {
       kind: "AgentDone";

@@ -35,9 +35,36 @@ pub struct BboxSelection {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct ConversationMeta {
+    pub id: String,
+    pub title: String,
+    pub pinned: bool,
+    pub created_at: String,
+    pub updated_at: String,
+    pub message_count: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct ConversationMessage {
+    pub role: String,
+    pub content: String,
+    pub evidence: Option<Vec<EvidenceItem>>,
+    pub timestamp: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct ConversationFull {
+    pub id: String,
+    pub title: String,
+    pub pinned: bool,
+    pub messages: Vec<ConversationMessage>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct ChatRequest {
     pub doc_id: String,
     pub message: String,
+    pub conv_id: Option<String>,
     pub selections: Option<Vec<BboxSelection>>,
     pub provider: Option<String>,
     pub model: Option<String>,
@@ -69,6 +96,10 @@ pub enum ChatStreamEvent {
         tool_call_id: String,
         tool_name: String,
         items: Vec<EvidenceItem>,
+    },
+    TitleUpdate {
+        conv_id: String,
+        title: String,
     },
     AgentDone,
     Error {

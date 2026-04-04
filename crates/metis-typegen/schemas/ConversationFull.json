@@ -1,0 +1,94 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ConversationFull",
+  "type": "object",
+  "required": [
+    "id",
+    "messages",
+    "pinned",
+    "title"
+  ],
+  "properties": {
+    "id": {
+      "type": "string"
+    },
+    "messages": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/ConversationMessage"
+      }
+    },
+    "pinned": {
+      "type": "boolean"
+    },
+    "title": {
+      "type": "string"
+    }
+  },
+  "definitions": {
+    "ConversationMessage": {
+      "type": "object",
+      "required": [
+        "content",
+        "role",
+        "timestamp"
+      ],
+      "properties": {
+        "content": {
+          "type": "string"
+        },
+        "evidence": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "$ref": "#/definitions/EvidenceItem"
+          }
+        },
+        "role": {
+          "type": "string"
+        },
+        "timestamp": {
+          "type": "string"
+        }
+      }
+    },
+    "EvidenceItem": {
+      "type": "object",
+      "required": [
+        "bbox_norm",
+        "page",
+        "score",
+        "span_id",
+        "text"
+      ],
+      "properties": {
+        "bbox_norm": {
+          "type": "array",
+          "items": {
+            "type": "number",
+            "format": "double"
+          },
+          "maxItems": 4,
+          "minItems": 4
+        },
+        "page": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0.0
+        },
+        "score": {
+          "type": "number",
+          "format": "double"
+        },
+        "span_id": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

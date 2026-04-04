@@ -194,10 +194,117 @@ fn get_document_pdf_url(doc_id: String) -> String {
 }
 
 #[tauri::command]
+async fn list_conversations(doc_id: String) -> Result<serde_json::Value, MetisError> {
+    let resp = reqwest::Client::new()
+        .get(format!("{BACKEND_URL}/documents/{doc_id}/conversations"))
+        .send()
+        .await
+        .map_err(map_reqwest_err)?;
+
+    if resp.status() == 404 {
+        return Err(MetisError::NotFound(resp.text().await.unwrap_or_default()));
+    }
+    if !resp.status().is_success() {
+        return Err(MetisError::BackendUnavailable(resp.text().await.unwrap_or_default()));
+    }
+
+    resp.json::<serde_json::Value>()
+        .await
+        .map_err(|e| MetisError::BackendUnavailable(e.to_string()))
+}
+
+#[tauri::command]
+async fn create_conversation(doc_id: String) -> Result<serde_json::Value, MetisError> {
+    let resp = reqwest::Client::new()
+        .post(format!("{BACKEND_URL}/documents/{doc_id}/conversations"))
+        .send()
+        .await
+        .map_err(map_reqwest_err)?;
+
+    if !resp.status().is_success() {
+        return Err(MetisError::BackendUnavailable(resp.text().await.unwrap_or_default()));
+    }
+
+    resp.json::<serde_json::Value>()
+        .await
+        .map_err(|e| MetisError::BackendUnavailable(e.to_string()))
+}
+
+#[tauri::command]
+async fn get_conversation(doc_id: String, conv_id: String) -> Result<serde_json::Value, MetisError> {
+    let resp = reqwest::Client::new()
+        .get(format!("{BACKEND_URL}/documents/{doc_id}/conversations/{conv_id}"))
+        .send()
+        .await
+        .map_err(map_reqwest_err)?;
+
+    if resp.status() == 404 {
+        return Err(MetisError::NotFound(resp.text().await.unwrap_or_default()));
+    }
+    if !resp.status().is_success() {
+        return Err(MetisError::BackendUnavailable(resp.text().await.unwrap_or_default()));
+    }
+
+    resp.json::<serde_json::Value>()
+        .await
+        .map_err(|e| MetisError::BackendUnavailable(e.to_string()))
+}
+
+#[tauri::command]
+async fn update_conversation(
+    doc_id: String,
+    conv_id: String,
+    title: Option<String>,
+    pinned: Option<bool>,
+) -> Result<serde_json::Value, MetisError> {
+    let mut body = serde_json::Map::new();
+    if let Some(t) = title {
+        body.insert("title".into(), serde_json::Value::String(t));
+    }
+    if let Some(p) = pinned {
+        body.insert("pinned".into(), serde_json::Value::Bool(p));
+    }
+
+    let resp = reqwest::Client::new()
+        .patch(format!("{BACKEND_URL}/documents/{doc_id}/conversations/{conv_id}"))
+        .json(&body)
+        .send()
+        .await
+        .map_err(map_reqwest_err)?;
+
+    if resp.status() == 404 {
+        return Err(MetisError::NotFound(resp.text().await.unwrap_or_default()));
+    }
+    if !resp.status().is_success() {
+        return Err(MetisError::BackendUnavailable(resp.text().await.unwrap_or_default()));
+    }
+
+    resp.json::<serde_json::Value>()
+        .await
+        .map_err(|e| MetisError::BackendUnavailable(e.to_string()))
+}
+
+#[tauri::command]
+async fn delete_conversation(doc_id: String, conv_id: String) -> Result<(), MetisError> {
+    let resp = reqwest::Client::new()
+        .delete(format!("{BACKEND_URL}/documents/{doc_id}/conversations/{conv_id}"))
+        .send()
+        .await
+        .map_err(map_reqwest_err)?;
+
+    if !resp.status().is_success() && resp.status() != 204 {
+        return Err(MetisError::BackendUnavailable(resp.text().await.unwrap_or_default()));
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
 async fn chat_start(
     app: tauri::AppHandle,
     doc_id: String,
     message: String,
+    conv_id: Option<String>,
     provider: Option<String>,
     model: Option<String>,
     selections: Option<Vec<BboxSelection>>,
@@ -206,6 +313,9 @@ async fn chat_start(
         "doc_id": doc_id,
         "message": message,
     });
+    if let Some(c) = conv_id {
+        body["conv_id"] = serde_json::Value::String(c);
+    }
     if let Some(p) = provider {
         body["provider"] = serde_json::Value::String(p);
     }
@@ -328,6 +438,17 @@ async fn chat_start(
                                 tool_name,
                                 items,
                             }
+                        }
+                        "title_update" => {
+                            let conv_id = parsed["conv_id"]
+                                .as_str()
+                                .unwrap_or_default()
+                                .to_string();
+                            let title = parsed["title"]
+                                .as_str()
+                                .unwrap_or_default()
+                                .to_string();
+                            ChatStreamEvent::TitleUpdate { conv_id, title }
                         }
                         "agent_done" => ChatStreamEvent::AgentDone,
                         "error" => {
@@ -486,6 +607,11 @@ pub fn run() {
             vectorize_doc,
             retrieve_evidence,
             get_document_pdf_url,
+            list_conversations,
+            create_conversation,
+            get_conversation,
+            update_conversation,
+            delete_conversation,
             chat_start,
             read_settings,
             save_settings,

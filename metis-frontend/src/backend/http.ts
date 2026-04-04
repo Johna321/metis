@@ -7,6 +7,9 @@ export type {
   EvidenceItem,
   BboxSelection,
   ChatStreamEvent,
+  ConversationMeta,
+  ConversationMessage,
+  ConversationFull,
 } from "./generated_types";
 
 export interface ApiSettings {
@@ -24,6 +27,8 @@ import type {
   EvidenceItem,
   BboxSelection,
   ChatStreamEvent,
+  ConversationMeta,
+  ConversationFull,
 } from "./generated_types";
 
 /** Compute the SHA256 doc_id for a local file (runs in Rust, very fast). */
@@ -63,6 +68,32 @@ export async function getDocumentPdfUrl(docId: string): Promise<string> {
   return invoke("get_document_pdf_url", { docId });
 }
 
+// Conversation management
+
+export async function listConversations(docId: string): Promise<{ conversations: ConversationMeta[] }> {
+  return invoke("list_conversations", { docId });
+}
+
+export async function createConversation(docId: string): Promise<ConversationMeta> {
+  return invoke("create_conversation", { docId });
+}
+
+export async function getConversation(docId: string, convId: string): Promise<ConversationFull> {
+  return invoke("get_conversation", { docId, convId });
+}
+
+export async function updateConversation(
+  docId: string,
+  convId: string,
+  updates: { title?: string; pinned?: boolean },
+): Promise<ConversationMeta> {
+  return invoke("update_conversation", { docId, convId, ...updates });
+}
+
+export async function deleteConversation(docId: string, convId: string): Promise<void> {
+  return invoke("delete_conversation", { docId, convId });
+}
+
 // Chat streaming callbacks
 
 export type ChatStreamCallbacks = {
@@ -72,6 +103,7 @@ export type ChatStreamCallbacks = {
   onToolCallDone?: (id: string, name: string, args: unknown) => void;
   onMessageDone?: (role: string, content: string | null, toolCalls: unknown | null) => void;
   onCitationData?: (items: EvidenceItem[], toolCallId: string, toolName: string) => void;
+  onTitleUpdate?: (convId: string, title: string) => void;
   onAgentDone?: () => void;
   onError?: (message: string) => void;
 };
@@ -108,7 +140,7 @@ export async function chatStart(
   docId: string,
   message: string,
   callbacks: ChatStreamCallbacks,
-  opts?: { provider?: string; model?: string; selections?: BboxSelection[] },
+  opts?: { provider?: string; model?: string; selections?: BboxSelection[]; convId?: string },
 ): Promise<UnlistenFn> {
   const unlisten = await listen<ChatStreamEvent>("chat-stream", (event) => {
     const ev = event.payload;
@@ -131,6 +163,9 @@ export async function chatStart(
       case "CitationData":
         callbacks.onCitationData?.(ev.items, ev.tool_call_id, ev.tool_name);
         break;
+      case "TitleUpdate":
+        callbacks.onTitleUpdate?.(ev.conv_id, ev.title);
+        break;
       case "AgentDone":
         callbacks.onAgentDone?.();
         break;
@@ -143,6 +178,7 @@ export async function chatStart(
   await invoke("chat_start", {
     docId,
     message,
+    convId: opts?.convId ?? null,
     provider: opts?.provider ?? null,
     model: opts?.model ?? null,
     selections: opts?.selections ?? null,

@@ -137,6 +137,28 @@
     {
       "type": "object",
       "required": [
+        "conv_id",
+        "kind",
+        "title"
+      ],
+      "properties": {
+        "conv_id": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "TitleUpdate"
+          ]
+        },
+        "title": {
+          "type": "string"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
         "kind"
       ],
       "properties": {

@@ -54,6 +54,12 @@
         }
       },
       "properties": {
+        "conv_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "doc_id": {
           "type": "string"
         },
@@ -264,6 +270,28 @@
         },
         {
           "properties": {
+            "conv_id": {
+              "type": "string"
+            },
+            "kind": {
+              "enum": [
+                "TitleUpdate"
+              ],
+              "type": "string"
+            },
+            "title": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "conv_id",
+            "kind",
+            "title"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
             "kind": {
               "enum": [
                 "AgentDone"
@@ -296,6 +324,203 @@
         }
       ],
       "title": "ChatStreamEvent"
+    },
+    "ConversationFull": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "definitions": {
+        "ConversationMessage": {
+          "properties": {
+            "content": {
+              "type": "string"
+            },
+            "evidence": {
+              "items": {
+                "$ref": "#/definitions/EvidenceItem"
+              },
+              "type": [
+                "array",
+                "null"
+              ]
+            },
+            "role": {
+              "type": "string"
+            },
+            "timestamp": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "content",
+            "role",
+            "timestamp"
+          ],
+          "type": "object"
+        },
+        "EvidenceItem": {
+          "properties": {
+            "bbox_norm": {
+              "items": {
+                "format": "double",
+                "type": "number"
+              },
+              "maxItems": 4,
+              "minItems": 4,
+              "type": "array"
+            },
+            "page": {
+              "format": "uint32",
+              "minimum": 0.0,
+              "type": "integer"
+            },
+            "score": {
+              "format": "double",
+              "type": "number"
+            },
+            "span_id": {
+              "type": "string"
+            },
+            "text": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "bbox_norm",
+            "page",
+            "score",
+            "span_id",
+            "text"
+          ],
+          "type": "object"
+        }
+      },
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "messages": {
+          "items": {
+            "$ref": "#/definitions/ConversationMessage"
+          },
+          "type": "array"
+        },
+        "pinned": {
+          "type": "boolean"
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "messages",
+        "pinned",
+        "title"
+      ],
+      "title": "ConversationFull",
+      "type": "object"
+    },
+    "ConversationMessage": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "definitions": {
+        "EvidenceItem": {
+          "properties": {
+            "bbox_norm": {
+              "items": {
+                "format": "double",
+                "type": "number"
+              },
+              "maxItems": 4,
+              "minItems": 4,
+              "type": "array"
+            },
+            "page": {
+              "format": "uint32",
+              "minimum": 0.0,
+              "type": "integer"
+            },
+            "score": {
+              "format": "double",
+              "type": "number"
+            },
+            "span_id": {
+              "type": "string"
+            },
+            "text": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "bbox_norm",
+            "page",
+            "score",
+            "span_id",
+            "text"
+          ],
+          "type": "object"
+        }
+      },
+      "properties": {
+        "content": {
+          "type": "string"
+        },
+        "evidence": {
+          "items": {
+            "$ref": "#/definitions/EvidenceItem"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "role": {
+          "type": "string"
+        },
+        "timestamp": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "content",
+        "role",
+        "timestamp"
+      ],
+      "title": "ConversationMessage",
+      "type": "object"
+    },
+    "ConversationMeta": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "properties": {
+        "created_at": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "message_count": {
+          "format": "uint32",
+          "minimum": 0.0,
+          "type": "integer"
+        },
+        "pinned": {
+          "type": "boolean"
+        },
+        "title": {
+          "type": "string"
+        },
+        "updated_at": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "created_at",
+        "id",
+        "message_count",
+        "pinned",
+        "title",
+        "updated_at"
+      ],
+      "title": "ConversationMeta",
+      "type": "object"
     },
     "EvidenceItem": {
       "$schema": "http://json-schema.org/draft-07/schema#",

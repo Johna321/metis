@@ -16,6 +16,9 @@ fn main() {
         ("BboxSelection", schema_for!(metis_types::BboxSelection)),
         ("ChatRequest", schema_for!(metis_types::ChatRequest)),
         ("ChatStreamEvent", schema_for!(metis_types::ChatStreamEvent)),
+        ("ConversationMeta", schema_for!(metis_types::ConversationMeta)),
+        ("ConversationMessage", schema_for!(metis_types::ConversationMessage)),
+        ("ConversationFull", schema_for!(metis_types::ConversationFull)),
     ];
 
     // Write individual schema files
