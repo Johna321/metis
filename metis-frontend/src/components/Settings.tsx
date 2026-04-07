@@ -95,8 +95,7 @@ export function Settings({ isOpen, onClose }: SettingsProps) {
                     setSettings({
                       ...settings,
                       provider: newProvider,
-                      model:
-                        MODELS[newProvider]?.[0] || settings.model,
+                      model: MODELS[newProvider]?.[0] || settings.model,
                     });
                   }}
                 >
@@ -114,10 +113,7 @@ export function Settings({ isOpen, onClose }: SettingsProps) {
                   id="model"
                   value={settings.model}
                   onChange={(e) =>
-                    setSettings({
-                      ...settings,
-                      model: e.target.value,
-                    })
+                    setSettings({ ...settings, model: e.target.value })
                   }
                 >
                   {availableModels.map((m) => (
@@ -128,81 +124,17 @@ export function Settings({ isOpen, onClose }: SettingsProps) {
                 </select>
               </div>
 
-              {settings.provider === "anthropic" && (
-                <div className="settings-section">
-                  <label htmlFor="anthropic-key">
-                    Anthropic API Key
-                  </label>
-                  <input
-                    id="anthropic-key"
-                    type="password"
-                    placeholder="sk-ant-..."
-                    value={settings.anthropic_api_key || ""}
-                    onChange={(e) =>
-                      setSettings({
-                        ...settings,
-                        anthropic_api_key: e.target.value || undefined,
-                      })
-                    }
-                  />
-                </div>
-              )}
-
-              {settings.provider === "openai" && (
-                <div className="settings-section">
-                  <label htmlFor="openai-key">OpenAI API Key</label>
-                  <input
-                    id="openai-key"
-                    type="password"
-                    placeholder="sk-..."
-                    value={settings.openai_api_key || ""}
-                    onChange={(e) =>
-                      setSettings({
-                        ...settings,
-                        openai_api_key: e.target.value || undefined,
-                      })
-                    }
-                  />
-                </div>
-              )}
-
-              {settings.provider === "openrouter" && (
-                <div className="settings-section">
-                  <label htmlFor="openrouter-key">
-                    OpenRouter API Key
-                  </label>
-                  <input
-                    id="openrouter-key"
-                    type="password"
-                    placeholder="sk-or-..."
-                    value={settings.openrouter_api_key || ""}
-                    onChange={(e) =>
-                      setSettings({
-                        ...settings,
-                        openrouter_api_key: e.target.value || undefined,
-                      })
-                    }
-                  />
-                </div>
-              )}
-
-              <div className="settings-section">
-                <label htmlFor="tavily-key">
-                  Tavily API Key (Optional)
-                </label>
-                <input
-                  id="tavily-key"
-                  type="password"
-                  placeholder="tvly-..."
-                  value={settings.tavily_api_key || ""}
-                  onChange={(e) =>
-                    setSettings({
-                      ...settings,
-                      tavily_api_key: e.target.value || undefined,
-                    })
-                  }
-                />
-                <small>Optional for web search functionality</small>
+              <div className="settings-section settings-api-key-note">
+                <label>API Keys</label>
+                <p>
+                  API keys are not stored by Metis. Set them via environment
+                  variable or in{" "}
+                  <code>~/.config/metis/config.toml</code>:
+                </p>
+                <pre>{`anthropic_api_key = "sk-ant-..."
+openai_api_key    = "sk-..."
+openrouter_api_key = "sk-or-..."
+tavily_api_key    = "tvly-..."  # optional`}</pre>
               </div>
 
               {error && <div className="settings-error">{error}</div>}

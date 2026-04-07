@@ -76,10 +76,6 @@ class SemanticRetrieveRequest(BaseModel):
 class SettingsUpdate(BaseModel):
     provider: Optional[str] = None
     model: Optional[str] = None
-    anthropic_api_key: Optional[str] = None
-    openai_api_key: Optional[str] = None
-    openrouter_api_key: Optional[str] = None
-    tavily_api_key: Optional[str] = None
 
 
 # ---------------------------------------------------------------------------
@@ -128,10 +124,6 @@ def update_settings_endpoint(req: SettingsUpdate) -> dict:
         _settings.LLM_PROVIDER = req.provider
     if req.model is not None:
         _settings.LLM_MODEL = req.model
-    _settings.ANTHROPIC_API_KEY = req.anthropic_api_key or ""
-    _settings.OPENAI_API_KEY = req.openai_api_key or ""
-    _settings.OPENROUTER_API_KEY = req.openrouter_api_key or ""
-    _settings.TAVILY_API_KEY = req.tavily_api_key or ""
     return {"ok": True}
 
 

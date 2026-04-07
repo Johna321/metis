@@ -23,10 +23,6 @@ const BACKEND_URL: &str = "http://127.0.0.1:8000";
 pub struct ApiSettings {
     pub provider: String,
     pub model: String,
-    pub anthropic_api_key: Option<String>,
-    pub openai_api_key: Option<String>,
-    pub openrouter_api_key: Option<String>,
-    pub tavily_api_key: Option<String>,
 }
 
 impl Default for ApiSettings {
@@ -34,10 +30,6 @@ impl Default for ApiSettings {
         Self {
             provider: "anthropic".to_string(),
             model: "claude-sonnet-4-20250514".to_string(),
-            anthropic_api_key: None,
-            openai_api_key: None,
-            openrouter_api_key: None,
-            tavily_api_key: None,
         }
     }
 }
@@ -363,25 +355,100 @@ async fn chat_start(
     Ok(())
 }
 
-fn settings_path(config_dir: &Path) -> std::path::PathBuf {
-    config_dir.join("settings.json")
+/// Render a config.toml string. `existing` is the currently-parsed table and is
+/// used to re-emit any API keys the user already had set, preserving them across
+/// saves that only change provider/model.  When `existing` is empty (first-run
+/// demo), all key lines are emitted as commented-out placeholders.
+fn render_config_toml(settings: &ApiSettings, existing: &toml::Table) -> String {
+    let key_line = |name: &str, placeholder: &str| -> String {
+        match existing.get(name).and_then(|v| v.as_str()) {
+            Some(val) if !val.is_empty() => format!("{name} = \"{val}\""),
+            _ => format!("# {name} = \"{placeholder}\""),
+        }
+    };
+
+    let provider = &settings.provider;
+    let model = &settings.model;
+    let anthropic = key_line("anthropic_api_key", "sk-ant-...");
+    let openai = key_line("openai_api_key", "sk-...");
+    let openrouter = key_line("openrouter_api_key", "sk-or-...");
+    let tavily = key_line("tavily_api_key", "tvly-...");
+
+    format!(
+        r#"# Metis Configuration
+# Edit this file and restart Metis to apply changes.
+
+# LLM provider. One of: anthropic, openai, openrouter
+provider = "{provider}"
+
+# Model name for the selected provider.
+# anthropic:   claude-opus-4-6, claude-sonnet-4-20250514, claude-haiku-4-5-20251001
+# openai:      gpt-4o, gpt-4-turbo, gpt-3.5-turbo
+# openrouter:  any model slug from openrouter.ai
+model = "{model}"
+
+# ---------------------------------------------------------------------------
+# API Keys
+# Set the key for your chosen provider. The others can be left commented out.
+# ---------------------------------------------------------------------------
+
+{anthropic}
+{openai}
+{openrouter}
+
+# Optional: Tavily API key enables web search in the agent.
+{tavily}
+"#
+    )
 }
 
-fn read_settings_from_file(config_dir: &Path) -> ApiSettings {
-    let path = settings_path(config_dir);
-    std::fs::read(&path)
+fn read_config_toml(config_dir: &Path) -> ApiSettings {
+    let path = config_dir.join("config.toml");
+    let table: toml::Table = std::fs::read_to_string(&path)
         .ok()
-        .and_then(|b| serde_json::from_slice(&b).ok())
-        .unwrap_or_default()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or_default();
+
+    ApiSettings {
+        provider: table
+            .get("provider")
+            .and_then(|v| v.as_str())
+            .unwrap_or("anthropic")
+            .to_string(),
+        model: table
+            .get("model")
+            .and_then(|v| v.as_str())
+            .unwrap_or("claude-sonnet-4-20250514")
+            .to_string(),
+    }
 }
 
-fn write_settings_to_file(config_dir: &Path, settings: &ApiSettings) -> Result<(), MetisError> {
+fn write_config_toml(config_dir: &Path, settings: &ApiSettings) -> Result<(), MetisError> {
     std::fs::create_dir_all(config_dir)
         .map_err(|e| MetisError::BackendUnavailable(format!("Cannot create config dir: {e}")))?;
-    let json = serde_json::to_vec_pretty(settings)
-        .map_err(|e| MetisError::BackendUnavailable(format!("Cannot serialize settings: {e}")))?;
-    std::fs::write(settings_path(config_dir), json)
-        .map_err(|e| MetisError::BackendUnavailable(format!("Cannot write settings file: {e}")))?;
+
+    // Read the existing table so we can preserve any API keys already in the file.
+    let existing: toml::Table = std::fs::read_to_string(config_dir.join("config.toml"))
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or_default();
+
+    let content = render_config_toml(settings, &existing);
+    std::fs::write(config_dir.join("config.toml"), content)
+        .map_err(|e| MetisError::BackendUnavailable(format!("Cannot write config.toml: {e}")))?;
+    Ok(())
+}
+
+fn create_demo_config_if_missing(config_dir: &Path) -> Result<(), MetisError> {
+    let path = config_dir.join("config.toml");
+    if path.exists() {
+        return Ok(());
+    }
+    std::fs::create_dir_all(config_dir)
+        .map_err(|e| MetisError::BackendUnavailable(format!("Cannot create config dir: {e}")))?;
+    let content = render_config_toml(&ApiSettings::default(), &toml::Table::new());
+    std::fs::write(&path, content)
+        .map_err(|e| MetisError::BackendUnavailable(format!("Cannot write config.toml: {e}")))?;
     Ok(())
 }
 
@@ -401,7 +468,7 @@ async fn read_settings(app: tauri::AppHandle) -> Result<ApiSettings, MetisError>
         .path()
         .app_config_dir()
         .map_err(|e| MetisError::BackendUnavailable(e.to_string()))?;
-    Ok(read_settings_from_file(&config_dir))
+    Ok(read_config_toml(&config_dir))
 }
 
 #[tauri::command]
@@ -411,7 +478,7 @@ async fn save_settings(app: tauri::AppHandle, settings: ApiSettings) -> Result<(
         .app_config_dir()
         .map_err(|e| MetisError::BackendUnavailable(e.to_string()))?;
 
-    write_settings_to_file(&config_dir, &settings)?;
+    write_config_toml(&config_dir, &settings)?;
 
     // Push the updated settings to the running backend so they take effect immediately.
     push_settings_to_backend(&settings)
@@ -430,10 +497,14 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
+            let config_dir = app.path().app_config_dir()?;
+            create_demo_config_if_missing(&config_dir)?;
+
             let (mut rx, child) = app
                 .shell()
                 .sidecar("metis-web")
                 .expect("failed to create metis-web sidecar command")
+                .env("METIS_CONFIG_DIR", &config_dir)
                 .spawn()
                 .expect("failed to spawn metis-web sidecar");
 
@@ -463,8 +534,7 @@ pub fn run() {
 
             // Push stored settings to the backend once it's ready.
             // Polls every 500 ms for up to 15 seconds before giving up.
-            let config_dir = app.path().app_config_dir()?;
-            let startup_settings = read_settings_from_file(&config_dir);
+            let startup_settings = read_config_toml(&config_dir);
             tauri::async_runtime::spawn(async move {
                 for _ in 0..30 {
                     if push_settings_to_backend(&startup_settings).await.is_ok() {

@@ -12,10 +12,6 @@ export type {
 export interface ApiSettings {
   provider: string;
   model: string;
-  anthropic_api_key?: string;
-  openai_api_key?: string;
-  openrouter_api_key?: string;
-  tavily_api_key?: string;
 }
 
 import type {
