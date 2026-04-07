@@ -19,7 +19,7 @@ const MODELS: Record<string, string[]> = {
     "claude-haiku-4-5-20251001",
   ],
   openai: ["gpt-4o", "gpt-4-turbo", "gpt-3.5-turbo"],
-  openrouter: ["meta-llama/llama-2-70b-chat", "mistralai/mistral-7b-instruct"],
+  openrouter: ["xiaomi/mimo-v2-pro", "minimax/minimax-m2.7", "deepseek/deepseek-v3.2", "google/gemini-3-flash-preview", "x-ai/grok-4.1-fast", "moonshotai/kimi-k2.5", "qwen/qwen3.6-plus:free"],
 };
 
 export function Settings({ isOpen, onClose }: SettingsProps) {

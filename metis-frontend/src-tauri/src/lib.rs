@@ -4,6 +4,7 @@ use metis_types::{
 };
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+use std::path::Path;
 use std::sync::Mutex;
 use tauri::{Emitter, Manager};
 use tauri_plugin_shell::{
@@ -17,7 +18,6 @@ struct SidecarHandle {
 }
 
 const BACKEND_URL: &str = "http://127.0.0.1:8000";
-const KEYCHAIN_SERVICE: &str = "metis";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ApiSettings {
@@ -27,6 +27,19 @@ pub struct ApiSettings {
     pub openai_api_key: Option<String>,
     pub openrouter_api_key: Option<String>,
     pub tavily_api_key: Option<String>,
+}
+
+impl Default for ApiSettings {
+    fn default() -> Self {
+        Self {
+            provider: "anthropic".to_string(),
+            model: "claude-sonnet-4-20250514".to_string(),
+            anthropic_api_key: None,
+            openai_api_key: None,
+            openrouter_api_key: None,
+            tavily_api_key: None,
+        }
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -350,89 +363,60 @@ async fn chat_start(
     Ok(())
 }
 
-#[tauri::command]
-async fn read_settings(_app: tauri::AppHandle) -> Result<ApiSettings, MetisError> {
-    let provider = keyring::Entry::new(KEYCHAIN_SERVICE, "provider")
-        .ok()
-        .and_then(|e| e.get_password().ok())
-        .unwrap_or_else(|| "anthropic".to_string());
+fn settings_path(config_dir: &Path) -> std::path::PathBuf {
+    config_dir.join("settings.json")
+}
 
-    let model = keyring::Entry::new(KEYCHAIN_SERVICE, "model")
+fn read_settings_from_file(config_dir: &Path) -> ApiSettings {
+    let path = settings_path(config_dir);
+    std::fs::read(&path)
         .ok()
-        .and_then(|e| e.get_password().ok())
-        .unwrap_or_else(|| "claude-sonnet-4-20250514".to_string());
+        .and_then(|b| serde_json::from_slice(&b).ok())
+        .unwrap_or_default()
+}
 
-    let anthropic_api_key = keyring::Entry::new(KEYCHAIN_SERVICE, "anthropic_api_key")
-        .ok()
-        .and_then(|e| e.get_password().ok());
+fn write_settings_to_file(config_dir: &Path, settings: &ApiSettings) -> Result<(), MetisError> {
+    std::fs::create_dir_all(config_dir)
+        .map_err(|e| MetisError::BackendUnavailable(format!("Cannot create config dir: {e}")))?;
+    let json = serde_json::to_vec_pretty(settings)
+        .map_err(|e| MetisError::BackendUnavailable(format!("Cannot serialize settings: {e}")))?;
+    std::fs::write(settings_path(config_dir), json)
+        .map_err(|e| MetisError::BackendUnavailable(format!("Cannot write settings file: {e}")))?;
+    Ok(())
+}
 
-    let openai_api_key = keyring::Entry::new(KEYCHAIN_SERVICE, "openai_api_key")
-        .ok()
-        .and_then(|e| e.get_password().ok());
-
-    let openrouter_api_key = keyring::Entry::new(KEYCHAIN_SERVICE, "openrouter_api_key")
-        .ok()
-        .and_then(|e| e.get_password().ok());
-
-    let tavily_api_key = keyring::Entry::new(KEYCHAIN_SERVICE, "tavily_api_key")
-        .ok()
-        .and_then(|e| e.get_password().ok());
-
-    Ok(ApiSettings {
-        provider,
-        model,
-        anthropic_api_key,
-        openai_api_key,
-        openrouter_api_key,
-        tavily_api_key,
-    })
+async fn push_settings_to_backend(settings: &ApiSettings) -> Result<(), reqwest::Error> {
+    reqwest::Client::new()
+        .put(format!("{BACKEND_URL}/settings"))
+        .json(settings)
+        .send()
+        .await?
+        .error_for_status()?;
+    Ok(())
 }
 
 #[tauri::command]
-async fn save_settings(_app: tauri::AppHandle, settings: ApiSettings) -> Result<(), MetisError> {
-    keyring::Entry::new(KEYCHAIN_SERVICE, "provider")
-        .and_then(|e| e.set_password(&settings.provider))
+async fn read_settings(app: tauri::AppHandle) -> Result<ApiSettings, MetisError> {
+    let config_dir = app
+        .path()
+        .app_config_dir()
+        .map_err(|e| MetisError::BackendUnavailable(e.to_string()))?;
+    Ok(read_settings_from_file(&config_dir))
+}
+
+#[tauri::command]
+async fn save_settings(app: tauri::AppHandle, settings: ApiSettings) -> Result<(), MetisError> {
+    let config_dir = app
+        .path()
+        .app_config_dir()
         .map_err(|e| MetisError::BackendUnavailable(e.to_string()))?;
 
-    keyring::Entry::new(KEYCHAIN_SERVICE, "model")
-        .and_then(|e| e.set_password(&settings.model))
-        .map_err(|e| MetisError::BackendUnavailable(e.to_string()))?;
+    write_settings_to_file(&config_dir, &settings)?;
 
-    if let Some(key) = settings.anthropic_api_key {
-        keyring::Entry::new(KEYCHAIN_SERVICE, "anthropic_api_key")
-            .and_then(|e| e.set_password(&key))
-            .map_err(|e| MetisError::BackendUnavailable(e.to_string()))?;
-    } else {
-        let _ = keyring::Entry::new(KEYCHAIN_SERVICE, "anthropic_api_key")
-            .and_then(|e| e.delete_password());
-    }
-
-    if let Some(key) = settings.openai_api_key {
-        keyring::Entry::new(KEYCHAIN_SERVICE, "openai_api_key")
-            .and_then(|e| e.set_password(&key))
-            .map_err(|e| MetisError::BackendUnavailable(e.to_string()))?;
-    } else {
-        let _ = keyring::Entry::new(KEYCHAIN_SERVICE, "openai_api_key")
-            .and_then(|e| e.delete_password());
-    }
-
-    if let Some(key) = settings.openrouter_api_key {
-        keyring::Entry::new(KEYCHAIN_SERVICE, "openrouter_api_key")
-            .and_then(|e| e.set_password(&key))
-            .map_err(|e| MetisError::BackendUnavailable(e.to_string()))?;
-    } else {
-        let _ = keyring::Entry::new(KEYCHAIN_SERVICE, "openrouter_api_key")
-            .and_then(|e| e.delete_password());
-    }
-
-    if let Some(key) = settings.tavily_api_key {
-        keyring::Entry::new(KEYCHAIN_SERVICE, "tavily_api_key")
-            .and_then(|e| e.set_password(&key))
-            .map_err(|e| MetisError::BackendUnavailable(e.to_string()))?;
-    } else {
-        let _ = keyring::Entry::new(KEYCHAIN_SERVICE, "tavily_api_key")
-            .and_then(|e| e.delete_password());
-    }
+    // Push the updated settings to the running backend so they take effect immediately.
+    push_settings_to_backend(&settings)
+        .await
+        .map_err(|e| MetisError::BackendUnavailable(format!("Failed to sync settings to backend: {e}")))?;
 
     Ok(())
 }
@@ -474,6 +458,19 @@ pub fn run() {
                         }
                         _ => {}
                     }
+                }
+            });
+
+            // Push stored settings to the backend once it's ready.
+            // Polls every 500 ms for up to 15 seconds before giving up.
+            let config_dir = app.path().app_config_dir()?;
+            let startup_settings = read_settings_from_file(&config_dir);
+            tauri::async_runtime::spawn(async move {
+                for _ in 0..30 {
+                    if push_settings_to_backend(&startup_settings).await.is_ok() {
+                        break;
+                    }
+                    tokio::time::sleep(std::time::Duration::from_millis(500)).await;
                 }
             });
 
