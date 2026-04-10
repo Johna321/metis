@@ -7,6 +7,7 @@ import { useVirtualPages } from "../hooks/useVirtualPages";
 import { useRenderQueue } from "../hooks/useRenderQueue";
 import { usePageLayers } from "../hooks/usePageLayers";
 import { useBBoxDrag } from "../hooks/useBBoxDrag";
+import { usePdfSearch } from "../hooks/usePdfSearch";
 import { PageSlot } from "./PageSlot";
 import { BBoxOverlay } from "./BBoxOverlay";
 
@@ -64,6 +65,7 @@ export function PdfViewer({
     PAGE_WIDTH,
     pageRefs.current,
   );
+  const { search, clearSearch, matches, currentMatchIdx, searchQuery, nextMatch, prevMatch } = usePdfSearch(doc, pageDims);
 
   // calculate page positions (X,Y offset of each page in scroll container)
   const pagePositions = pageDims.map((_, idx) => {
@@ -147,6 +149,13 @@ export function PdfViewer({
     setContextMenu(null);
   }, [contextMenu]);
 
+  // handle "Find all" menu item click
+  const handleFindAll = useCallback(async () => {
+    if (!contextMenu) return;
+    await search(contextMenu.text);
+    setContextMenu(null);
+  }, [contextMenu, search]);
+
   // close menu when clicking elsewhere
   useEffect(() => {
     if (!contextMenu) return;
@@ -155,6 +164,14 @@ export function PdfViewer({
     document.addEventListener("click", handleClick);
     return () => document.removeEventListener("click", handleClick);
   }, [contextMenu]);
+
+  // auto-scroll to current search match
+  useEffect(() => {
+    if (matches.length === 0) return;
+    const match = matches[currentMatchIdx];
+    const el = pageRefs.current.get(match.page);
+    el?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [currentMatchIdx, matches]);
 
   if (loading && pageDims.length === 0) {
     return <div className="status">Loading PDF...</div>;
@@ -165,59 +182,103 @@ export function PdfViewer({
   }
 
   return (
-    <div
-      className="pdf-scroll-container"
-      ref={setScrollContainer}
-      onContextMenu={handleContextMenu}
-    >
-      {contextMenu && (
-        <div
-          className="context-menu"
-          style={{
-            position: "fixed",
-            top: `${contextMenu.y}px`,
-            left: `${contextMenu.x}px`,
-            zIndex: 1000,
-          }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <button className="context-menu-item" onClick={handleAddToContext}>
-            Add to context
+    <div className="pdf-viewer-wrapper">
+      <div
+        className="pdf-scroll-container"
+        ref={setScrollContainer}
+        onContextMenu={handleContextMenu}
+      >
+        {contextMenu && (
+          <div
+            className="context-menu"
+            style={{
+              position: "fixed",
+              top: `${contextMenu.y}px`,
+              left: `${contextMenu.x}px`,
+              zIndex: 1000,
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button className="context-menu-item" onClick={handleAddToContext}>
+              Add to context
+            </button>
+            <button className="context-menu-item" onClick={handleCopyText}>
+              Copy
+            </button>
+            <button className="context-menu-item" onClick={handleFindAll}>
+              Find all
+            </button>
+          </div>
+        )}
+        {pageDims.map((dim, i) => {
+          const pageHeight = PAGE_WIDTH * (dim.h / dim.w);
+          return (
+            <PageSlot
+              key={i}
+              pageIndex={i}
+              pageWidth={PAGE_WIDTH}
+              pageHeight={pageHeight}
+              nativeWidth={dim.w}
+              offscreenCanvas={getRenderedCanvas(i)}
+              textLayerDiv={getTextLayer(i)}
+              annotLayerDiv={getAnnotLayer(i)}
+              observeElement={trackPageRef}
+            >
+              <BBoxOverlay
+                pageIndex={i}
+                bboxMode={bboxMode}
+                bboxSelections={bboxSelections}
+                highlightTarget={highlightTarget}
+                liveRect={liveRect}
+                dragPage={dragState?.page ?? null}
+                onMouseDown={handleDown}
+                onMouseMove={handleMove}
+                onMouseUp={handleUp}
+                onBackgroundClick={onBackgroundClick}
+                searchMatches={matches}
+                currentSearchMatchIdx={currentMatchIdx}
+              />
+            </PageSlot>
+          );
+        })}
+      </div>
+      {searchQuery && (
+        <div className="search-nav-bar">
+          <button
+            className="search-close-btn"
+            onClick={clearSearch}
+            title="Close search"
+          >
+            x
           </button>
-          <button className="context-menu-item" onClick={handleCopyText}>
-            Copy
-          </button>
+          <span className="search-query" title={searchQuery}>
+            "{searchQuery}"
+          </span>
+          <div className="search-controls">
+            <button
+              className="search-nav-btn"
+              onClick={prevMatch}
+              disabled={matches.length === 0}
+              title="Previous match"
+            >
+              ▲
+            </button>
+            <span className="search-counter">
+              {matches.length === 0
+                ? "no matches"
+                : `${currentMatchIdx + 1} of ${matches.length}`}
+            </span>
+            <button
+              className="search-nav-btn"
+              onClick={nextMatch}
+              disabled={matches.length === 0}
+              title="Next match"
+            >
+              ▼
+            </button>
+          </div>
         </div>
       )}
-      {pageDims.map((dim, i) => {
-        const pageHeight = PAGE_WIDTH * (dim.h / dim.w);
-        return (
-          <PageSlot
-            key={i}
-            pageIndex={i}
-            pageWidth={PAGE_WIDTH}
-            pageHeight={pageHeight}
-            nativeWidth={dim.w}
-            offscreenCanvas={getRenderedCanvas(i)}
-            textLayerDiv={getTextLayer(i)}
-            annotLayerDiv={getAnnotLayer(i)}
-            observeElement={trackPageRef}
-          >
-            <BBoxOverlay
-              pageIndex={i}
-              bboxMode={bboxMode}
-              bboxSelections={bboxSelections}
-              highlightTarget={highlightTarget}
-              liveRect={liveRect}
-              dragPage={dragState?.page ?? null}
-              onMouseDown={handleDown}
-              onMouseMove={handleMove}
-              onMouseUp={handleUp}
-              onBackgroundClick={onBackgroundClick}
-            />
-          </PageSlot>
-        );
-      })}
     </div>
   );
 }
