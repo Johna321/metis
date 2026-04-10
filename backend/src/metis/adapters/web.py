@@ -328,7 +328,7 @@ def chat_endpoint(req: ChatRequest) -> Iterable[ServerSentEvent]:
                 tools=registry,
                 system_prompt=SYSTEM_PROMPT,
                 conv_id=req.conv_id,
-                max_iterations=AGENT_MAX_ITER,
+                max_iterations=_settings.AGENT_MAX_ITER,
                 on_stream=on_stream,
             )
         except Exception as exc:
