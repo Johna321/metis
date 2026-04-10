@@ -498,6 +498,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
             let config_dir = app.path().app_config_dir()?;
+            let data_dir = app.path().app_data_dir()?;
             create_demo_config_if_missing(&config_dir)?;
 
             let (mut rx, child) = app
@@ -505,6 +506,7 @@ pub fn run() {
                 .sidecar("metis-web")
                 .expect("failed to create metis-web sidecar command")
                 .env("METIS_CONFIG_DIR", &config_dir)
+                .env("METIS_DATA_DIR", &data_dir)
                 .spawn()
                 .expect("failed to spawn metis-web sidecar");
 
