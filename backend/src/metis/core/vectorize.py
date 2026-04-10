@@ -6,14 +6,14 @@ from .schema import Span, Evidence
 from .store import paths, read_spans_jsonl, write_json
 from ..settings import MIN_CHARS, EMBED_MODEL, TOPK_EVIDENCE, MMR_LAMBDA
 
-_SKIP_KINDS = {"picture", "graphic"}
+_SKIP_KINDS = {"picture", "graphic", "formula", "table"}
 
 def _filter_embeddable(spans: List[Span]) -> List[Span]:
     out = []
     for s in spans:
         if s.is_header or s.is_footer:
             continue
-        if s.kind in _SKIP_KINDS:
+        if s.kind in _SKIP_KINDS and s.content_source is None:
             continue
         if s.text.startswith("[["):
             continue
