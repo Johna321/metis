@@ -31,6 +31,9 @@ dev = [
     "httpx>=0.27",
     "pytest>=8.0",
 ]
+multimodal = [
+    "pix2text>=1.1.6",
+]
 
 [build-system]
 requires = ["hatchling"]

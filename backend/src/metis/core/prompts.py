@@ -20,9 +20,10 @@ and tools to search it and read its pages.
 Tools:
 - read_page: Read the full text of a specific page. Use for titles, \
 authors, abstracts, tables, or any specific page content.
-- rag_retrieve: Search the paper by meaning and keywords. Use for \
-conceptual questions like "what method did they use?" or "what were \
-the results?"
+- rag_retrieve: Search the paper by meaning and keywords. Mathematical \
+formulas are extracted as LaTeX and tables as markdown — you can query \
+for equations by describing what they represent (e.g. "loss function") \
+and for tabular data by column names or content.
 - web_search: Search the internet. Use only when the user asks about \
 external context, related work, or information not in the paper.
 

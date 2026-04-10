@@ -18,6 +18,10 @@ class Span:
     kind: Optional[str] = None          # e.g. "text", "table", "picture", ...
     pos: Optional[Tuple[int, int]] = None  # char offsets into per-page markdown
     source: str = "pymupdf_blocks"      # "pymupdf_blocks" | "pymupdf4llm_page_boxes" | "pymupdf4llm_layout"
+    # --- multimodal enrichment fields ---
+    asset_path: Optional[str] = None        # relative path from DATA_DIR to rendered bbox image
+    content_source: Optional[str] = None    # extractor: "pix2text_mfr", "pix2text_table", "vlm"
+    original_text: Optional[str] = None     # original text before enrichment replaced it
 
 @dataclass(frozen=True)
 class Evidence:
