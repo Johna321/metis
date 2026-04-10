@@ -1,4 +1,5 @@
 import type { BBoxSelection } from "./PdfViewer";
+import type { SearchMatch } from "../hooks/usePdfSearch";
 
 type LiveRect = { left: number; top: number; width: number; height: number };
 
@@ -16,6 +17,8 @@ interface BBoxOverlayProps {
   onMouseMove: (e: React.MouseEvent<HTMLDivElement>) => void;
   onMouseUp: (e: React.MouseEvent<HTMLDivElement>, pageIndex: number) => void;
   onBackgroundClick?: () => void;
+  searchMatches?: SearchMatch[];
+  currentSearchMatchIdx?: number;
 }
 
 export function BBoxOverlay({
@@ -29,8 +32,10 @@ export function BBoxOverlay({
   onMouseMove,
   onMouseUp,
   onBackgroundClick,
+  searchMatches,
+  currentSearchMatchIdx,
 }: BBoxOverlayProps) {
-  const showOverlay = bboxMode || highlightTarget;
+  const showOverlay = bboxMode || highlightTarget || (searchMatches && searchMatches.length > 0);
   if (!showOverlay) return null;
 
   return (
@@ -77,6 +82,27 @@ export function BBoxOverlay({
           }}
         />
       )}
+      {searchMatches &&
+        searchMatches
+          .filter((m) => m.page === pageIndex)
+          .map((m, idx) => {
+            const matchIdx = searchMatches.indexOf(m);
+            const isCurrentMatch = matchIdx === currentSearchMatchIdx;
+            return (
+              <div
+                key={idx}
+                className={`bbox-search-match ${
+                  isCurrentMatch ? "bbox-search-match-active" : ""
+                }`}
+                style={{
+                  left: `${m.bbox_norm[0] * 100}%`,
+                  top: `${m.bbox_norm[1] * 100}%`,
+                  width: `${(m.bbox_norm[2] - m.bbox_norm[0]) * 100}%`,
+                  height: `${(m.bbox_norm[3] - m.bbox_norm[1]) * 100}%`,
+                }}
+              />
+            );
+          })}
     </div>
   );
 }
