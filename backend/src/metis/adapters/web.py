@@ -32,17 +32,7 @@ from ..core.retrieve import resolve_selections, retrieve
 from ..core.store import paths
 from ..core.tools import ToolRegistry, make_rag_retrieve_tool, make_read_page_tool, make_web_search_tool
 from ..core.vectorize import retrieve_semantic, vectorize_spans
-from ..settings import (
-    AGENT_MAX_ITER,
-    AGENT_TEMPERATURE,
-    ANTHROPIC_API_KEY,
-    LLM_API_KEY,
-    LLM_MODEL,
-    LLM_PROVIDER,
-    OPENAI_API_KEY,
-    OPENROUTER_API_KEY,
-    TAVILY_API_KEY,
-)
+from .. import settings as _settings
 
 app = FastAPI(title="Metis")
 
@@ -81,6 +71,11 @@ class SemanticRetrieveRequest(BaseModel):
     query: str
     page: Optional[int] = None
     top_k: Optional[int] = None
+
+
+class SettingsUpdate(BaseModel):
+    provider: Optional[str] = None
+    model: Optional[str] = None
 
 
 # ---------------------------------------------------------------------------
@@ -122,6 +117,15 @@ def _stream_event_to_sse(event: StreamEvent) -> ServerSentEvent | None:
 # ---------------------------------------------------------------------------
 # Endpoints
 # ---------------------------------------------------------------------------
+
+@app.put("/settings")
+def update_settings_endpoint(req: SettingsUpdate) -> dict:
+    if req.provider is not None:
+        _settings.LLM_PROVIDER = req.provider
+    if req.model is not None:
+        _settings.LLM_MODEL = req.model
+    return {"ok": True}
+
 
 @app.post("/ingest", response_model=IngestResponse)
 async def ingest_endpoint(
@@ -214,16 +218,16 @@ def chat_endpoint(req: ChatRequest) -> Iterable[ServerSentEvent]:
         )
 
     # Resolve provider / model / api_key
-    prov = req.provider or LLM_PROVIDER
-    mod = req.model or LLM_MODEL
-    api_key = LLM_API_KEY
+    prov = req.provider or _settings.LLM_PROVIDER
+    mod = req.model or _settings.LLM_MODEL
+    api_key = _settings.LLM_API_KEY
     if not api_key:
         if prov == "anthropic":
-            api_key = ANTHROPIC_API_KEY
+            api_key = _settings.ANTHROPIC_API_KEY
         elif prov == "openai":
-            api_key = OPENAI_API_KEY
+            api_key = _settings.OPENAI_API_KEY
         elif prov == "openrouter":
-            api_key = OPENROUTER_API_KEY
+            api_key = _settings.OPENROUTER_API_KEY
     if not api_key:
         raise HTTPException(
             status_code=500,
@@ -231,11 +235,11 @@ def chat_endpoint(req: ChatRequest) -> Iterable[ServerSentEvent]:
         )
 
     if prov == "anthropic":
-        llm = AnthropicModel(api_key=api_key, model=mod, temperature=AGENT_TEMPERATURE)
+        llm = AnthropicModel(api_key=api_key, model=mod, temperature=_settings.AGENT_TEMPERATURE)
     elif prov == "openai":
-        llm = OpenAIModel(api_key=api_key, model=mod, temperature=AGENT_TEMPERATURE)
+        llm = OpenAIModel(api_key=api_key, model=mod, temperature=_settings.AGENT_TEMPERATURE)
     elif prov == "openrouter":
-        llm = OpenRouterModel(api_key=api_key, model=mod, temperature=AGENT_TEMPERATURE)
+        llm = OpenRouterModel(api_key=api_key, model=mod, temperature=_settings.AGENT_TEMPERATURE)
     else:
         raise HTTPException(status_code=400, detail=f"Unknown provider: {prov}. Use 'anthropic', 'openai', or 'openrouter'.")
 
@@ -248,7 +252,7 @@ def chat_endpoint(req: ChatRequest) -> Iterable[ServerSentEvent]:
         rp_def, rp_fn = make_read_page_tool(req.doc_id)
         registry.register(rp_def.name, rp_def.description, rp_def.parameters, rp_fn)
 
-    tavily_key = TAVILY_API_KEY
+    tavily_key = _settings.TAVILY_API_KEY
     if tavily_key:
         ws_def, ws_fn = make_web_search_tool(tavily_key)
         registry.register(ws_def.name, ws_def.description, ws_def.parameters, ws_fn)
@@ -275,7 +279,7 @@ def chat_endpoint(req: ChatRequest) -> Iterable[ServerSentEvent]:
                 user_query=enriched_query,
                 tools=registry,
                 system_prompt=SYSTEM_PROMPT,
-                max_iterations=AGENT_MAX_ITER,
+                max_iterations=_settings.AGENT_MAX_ITER,
                 on_stream=on_stream,
             )
         except Exception as exc:

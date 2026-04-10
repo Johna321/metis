@@ -4,6 +4,7 @@ use metis_types::{
 };
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+use std::path::Path;
 use std::sync::Mutex;
 use tauri::{Emitter, Manager};
 use tauri_plugin_shell::{
@@ -17,16 +18,20 @@ struct SidecarHandle {
 }
 
 const BACKEND_URL: &str = "http://127.0.0.1:8000";
-const KEYCHAIN_SERVICE: &str = "metis";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ApiSettings {
     pub provider: String,
     pub model: String,
-    pub anthropic_api_key: Option<String>,
-    pub openai_api_key: Option<String>,
-    pub openrouter_api_key: Option<String>,
-    pub tavily_api_key: Option<String>,
+}
+
+impl Default for ApiSettings {
+    fn default() -> Self {
+        Self {
+            provider: "anthropic".to_string(),
+            model: "claude-sonnet-4-20250514".to_string(),
+        }
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -350,89 +355,135 @@ async fn chat_start(
     Ok(())
 }
 
-#[tauri::command]
-async fn read_settings(_app: tauri::AppHandle) -> Result<ApiSettings, MetisError> {
-    let provider = keyring::Entry::new(KEYCHAIN_SERVICE, "provider")
-        .ok()
-        .and_then(|e| e.get_password().ok())
-        .unwrap_or_else(|| "anthropic".to_string());
+/// Render a config.toml string. `existing` is the currently-parsed table and is
+/// used to re-emit any API keys the user already had set, preserving them across
+/// saves that only change provider/model.  When `existing` is empty (first-run
+/// demo), all key lines are emitted as commented-out placeholders.
+fn render_config_toml(settings: &ApiSettings, existing: &toml::Table) -> String {
+    let key_line = |name: &str, placeholder: &str| -> String {
+        match existing.get(name).and_then(|v| v.as_str()) {
+            Some(val) if !val.is_empty() => format!("{name} = \"{val}\""),
+            _ => format!("# {name} = \"{placeholder}\""),
+        }
+    };
 
-    let model = keyring::Entry::new(KEYCHAIN_SERVICE, "model")
-        .ok()
-        .and_then(|e| e.get_password().ok())
-        .unwrap_or_else(|| "claude-sonnet-4-20250514".to_string());
+    let provider = &settings.provider;
+    let model = &settings.model;
+    let anthropic = key_line("anthropic_api_key", "sk-ant-...");
+    let openai = key_line("openai_api_key", "sk-...");
+    let openrouter = key_line("openrouter_api_key", "sk-or-...");
+    let tavily = key_line("tavily_api_key", "tvly-...");
 
-    let anthropic_api_key = keyring::Entry::new(KEYCHAIN_SERVICE, "anthropic_api_key")
-        .ok()
-        .and_then(|e| e.get_password().ok());
+    format!(
+        r#"# Metis Configuration
+# Edit this file and restart Metis to apply changes.
 
-    let openai_api_key = keyring::Entry::new(KEYCHAIN_SERVICE, "openai_api_key")
-        .ok()
-        .and_then(|e| e.get_password().ok());
+# LLM provider. One of: anthropic, openai, openrouter
+provider = "{provider}"
 
-    let openrouter_api_key = keyring::Entry::new(KEYCHAIN_SERVICE, "openrouter_api_key")
-        .ok()
-        .and_then(|e| e.get_password().ok());
+# Model name for the selected provider.
+# anthropic:   claude-opus-4-6, claude-sonnet-4-20250514, claude-haiku-4-5-20251001
+# openai:      gpt-4o, gpt-4-turbo, gpt-3.5-turbo
+# openrouter:  any model slug from openrouter.ai
+model = "{model}"
 
-    let tavily_api_key = keyring::Entry::new(KEYCHAIN_SERVICE, "tavily_api_key")
-        .ok()
-        .and_then(|e| e.get_password().ok());
+# ---------------------------------------------------------------------------
+# API Keys
+# Set the key for your chosen provider. The others can be left commented out.
+# ---------------------------------------------------------------------------
 
-    Ok(ApiSettings {
-        provider,
-        model,
-        anthropic_api_key,
-        openai_api_key,
-        openrouter_api_key,
-        tavily_api_key,
-    })
+{anthropic}
+{openai}
+{openrouter}
+
+# Optional: Tavily API key enables web search in the agent.
+{tavily}
+"#
+    )
+}
+
+fn read_config_toml(config_dir: &Path) -> ApiSettings {
+    let path = config_dir.join("config.toml");
+    let table: toml::Table = std::fs::read_to_string(&path)
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or_default();
+
+    ApiSettings {
+        provider: table
+            .get("provider")
+            .and_then(|v| v.as_str())
+            .unwrap_or("anthropic")
+            .to_string(),
+        model: table
+            .get("model")
+            .and_then(|v| v.as_str())
+            .unwrap_or("claude-sonnet-4-20250514")
+            .to_string(),
+    }
+}
+
+fn write_config_toml(config_dir: &Path, settings: &ApiSettings) -> Result<(), MetisError> {
+    std::fs::create_dir_all(config_dir)
+        .map_err(|e| MetisError::BackendUnavailable(format!("Cannot create config dir: {e}")))?;
+
+    // Read the existing table so we can preserve any API keys already in the file.
+    let existing: toml::Table = std::fs::read_to_string(config_dir.join("config.toml"))
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or_default();
+
+    let content = render_config_toml(settings, &existing);
+    std::fs::write(config_dir.join("config.toml"), content)
+        .map_err(|e| MetisError::BackendUnavailable(format!("Cannot write config.toml: {e}")))?;
+    Ok(())
+}
+
+fn create_demo_config_if_missing(config_dir: &Path) -> Result<(), MetisError> {
+    let path = config_dir.join("config.toml");
+    if path.exists() {
+        return Ok(());
+    }
+    std::fs::create_dir_all(config_dir)
+        .map_err(|e| MetisError::BackendUnavailable(format!("Cannot create config dir: {e}")))?;
+    let content = render_config_toml(&ApiSettings::default(), &toml::Table::new());
+    std::fs::write(&path, content)
+        .map_err(|e| MetisError::BackendUnavailable(format!("Cannot write config.toml: {e}")))?;
+    Ok(())
+}
+
+async fn push_settings_to_backend(settings: &ApiSettings) -> Result<(), reqwest::Error> {
+    reqwest::Client::new()
+        .put(format!("{BACKEND_URL}/settings"))
+        .json(settings)
+        .send()
+        .await?
+        .error_for_status()?;
+    Ok(())
 }
 
 #[tauri::command]
-async fn save_settings(_app: tauri::AppHandle, settings: ApiSettings) -> Result<(), MetisError> {
-    keyring::Entry::new(KEYCHAIN_SERVICE, "provider")
-        .and_then(|e| e.set_password(&settings.provider))
+async fn read_settings(app: tauri::AppHandle) -> Result<ApiSettings, MetisError> {
+    let config_dir = app
+        .path()
+        .app_config_dir()
+        .map_err(|e| MetisError::BackendUnavailable(e.to_string()))?;
+    Ok(read_config_toml(&config_dir))
+}
+
+#[tauri::command]
+async fn save_settings(app: tauri::AppHandle, settings: ApiSettings) -> Result<(), MetisError> {
+    let config_dir = app
+        .path()
+        .app_config_dir()
         .map_err(|e| MetisError::BackendUnavailable(e.to_string()))?;
 
-    keyring::Entry::new(KEYCHAIN_SERVICE, "model")
-        .and_then(|e| e.set_password(&settings.model))
-        .map_err(|e| MetisError::BackendUnavailable(e.to_string()))?;
+    write_config_toml(&config_dir, &settings)?;
 
-    if let Some(key) = settings.anthropic_api_key {
-        keyring::Entry::new(KEYCHAIN_SERVICE, "anthropic_api_key")
-            .and_then(|e| e.set_password(&key))
-            .map_err(|e| MetisError::BackendUnavailable(e.to_string()))?;
-    } else {
-        let _ = keyring::Entry::new(KEYCHAIN_SERVICE, "anthropic_api_key")
-            .and_then(|e| e.delete_password());
-    }
-
-    if let Some(key) = settings.openai_api_key {
-        keyring::Entry::new(KEYCHAIN_SERVICE, "openai_api_key")
-            .and_then(|e| e.set_password(&key))
-            .map_err(|e| MetisError::BackendUnavailable(e.to_string()))?;
-    } else {
-        let _ = keyring::Entry::new(KEYCHAIN_SERVICE, "openai_api_key")
-            .and_then(|e| e.delete_password());
-    }
-
-    if let Some(key) = settings.openrouter_api_key {
-        keyring::Entry::new(KEYCHAIN_SERVICE, "openrouter_api_key")
-            .and_then(|e| e.set_password(&key))
-            .map_err(|e| MetisError::BackendUnavailable(e.to_string()))?;
-    } else {
-        let _ = keyring::Entry::new(KEYCHAIN_SERVICE, "openrouter_api_key")
-            .and_then(|e| e.delete_password());
-    }
-
-    if let Some(key) = settings.tavily_api_key {
-        keyring::Entry::new(KEYCHAIN_SERVICE, "tavily_api_key")
-            .and_then(|e| e.set_password(&key))
-            .map_err(|e| MetisError::BackendUnavailable(e.to_string()))?;
-    } else {
-        let _ = keyring::Entry::new(KEYCHAIN_SERVICE, "tavily_api_key")
-            .and_then(|e| e.delete_password());
-    }
+    // Push the updated settings to the running backend so they take effect immediately.
+    push_settings_to_backend(&settings)
+        .await
+        .map_err(|e| MetisError::BackendUnavailable(format!("Failed to sync settings to backend: {e}")))?;
 
     Ok(())
 }
@@ -446,10 +497,16 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
+            let config_dir = app.path().app_config_dir()?;
+            let data_dir = app.path().app_data_dir()?;
+            create_demo_config_if_missing(&config_dir)?;
+
             let (mut rx, child) = app
                 .shell()
                 .sidecar("metis-web")
                 .expect("failed to create metis-web sidecar command")
+                .env("METIS_CONFIG_DIR", &config_dir)
+                .env("METIS_DATA_DIR", &data_dir)
                 .spawn()
                 .expect("failed to spawn metis-web sidecar");
 
@@ -474,6 +531,18 @@ pub fn run() {
                         }
                         _ => {}
                     }
+                }
+            });
+
+            // Push stored settings to the backend once it's ready.
+            // Polls every 500 ms for up to 15 seconds before giving up.
+            let startup_settings = read_config_toml(&config_dir);
+            tauri::async_runtime::spawn(async move {
+                for _ in 0..30 {
+                    if push_settings_to_backend(&startup_settings).await.is_ok() {
+                        break;
+                    }
+                    tokio::time::sleep(std::time::Duration::from_millis(500)).await;
                 }
             });
 
