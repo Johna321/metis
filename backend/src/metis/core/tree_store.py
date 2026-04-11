@@ -4,6 +4,7 @@
 .paragraphs.jsonl — flat list of ParagraphNode in reading order, for fast iteration
 """
 from __future__ import annotations
+import dataclasses as _dc
 from dataclasses import asdict
 from pathlib import Path
 from typing import Iterable, List
@@ -13,15 +14,24 @@ import orjson
 from .schema_tree import DocTree, HeadingNode, ParagraphNode
 
 
+# Cached at module load so we don't pay reflection cost on every call.
+# Filtering unknown keys gives us forward compatibility: old readers can
+# tolerate new files that added fields they don't know about.
+_PARA_FIELDS = {f.name for f in _dc.fields(ParagraphNode)}
+_HEAD_FIELDS = {f.name for f in _dc.fields(HeadingNode)}
+
+
 def _paragraph_to_dict(p: ParagraphNode) -> dict:
     return asdict(p)
 
 
 def _paragraph_from_dict(d: dict) -> ParagraphNode:
-    # orjson deserializes tuples as lists — convert bbox back
-    if "bbox_norm" in d and d["bbox_norm"] is not None:
-        d["bbox_norm"] = tuple(d["bbox_norm"])
-    return ParagraphNode(**d)
+    # Drop unknown keys for forward compatibility, then restore bbox tuple
+    # (orjson deserializes tuples as lists).
+    filtered = {k: v for k, v in d.items() if k in _PARA_FIELDS}
+    if filtered.get("bbox_norm") is not None:
+        filtered["bbox_norm"] = tuple(filtered["bbox_norm"])
+    return ParagraphNode(**filtered)
 
 
 def _heading_to_dict(h: HeadingNode) -> dict:
@@ -29,9 +39,10 @@ def _heading_to_dict(h: HeadingNode) -> dict:
 
 
 def _heading_from_dict(d: dict) -> HeadingNode:
-    if "title_bbox_norm" in d and d["title_bbox_norm"] is not None:
-        d["title_bbox_norm"] = tuple(d["title_bbox_norm"])
-    return HeadingNode(**d)
+    filtered = {k: v for k, v in d.items() if k in _HEAD_FIELDS}
+    if filtered.get("title_bbox_norm") is not None:
+        filtered["title_bbox_norm"] = tuple(filtered["title_bbox_norm"])
+    return HeadingNode(**filtered)
 
 
 def write_tree(path: Path, tree: DocTree) -> None:

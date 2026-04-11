@@ -71,3 +71,34 @@ def test_write_and_read_paragraphs_jsonl(tmp_path):
         assert loaded[0].kind == "text"
     finally:
         store_mod.DATA_DIR = orig
+
+
+def test_read_paragraphs_tolerates_unknown_keys(tmp_path):
+    """Old code loading new files: unknown keys must be silently dropped."""
+    import orjson
+    jsonl_path = tmp_path / "test.paragraphs.jsonl"
+    entry = {
+        "doc_id": "sha256:test",
+        "sec_id": "1",
+        "para_idx": 0,
+        "para_id": "sha256:test::1::p0",
+        "kind": "text",
+        "text": "hello",
+        "label": None,
+        "bbox_norm": [0, 0, 1, 1],
+        "page": 0,
+        "reading_order": 0,
+        "n_tokens": 1,
+        "asset_path": None,
+        "content_source": None,
+        "original_text": None,
+        # Unknown forward-compat field — must be dropped, not crash:
+        "future_field_from_tomorrow": "ignore me",
+    }
+    jsonl_path.write_bytes(orjson.dumps(entry) + b"\n")
+
+    from metis.core.tree_store import read_paragraphs
+    loaded = read_paragraphs(jsonl_path)
+    assert len(loaded) == 1
+    assert loaded[0].text == "hello"
+    assert loaded[0].bbox_norm == (0, 0, 1, 1)
