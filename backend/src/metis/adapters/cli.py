@@ -7,7 +7,7 @@ import typer
 import pymupdf
 from rich import print
 from pathlib import Path
-from ..core.ingest import ingest_pdf_bytes, ingest_pdf_bytes_layout
+from ..core.ingest import ingest_pdf_bytes, ingest_pdf_bytes_layout, ingest_pdf_bytes_tree
 from ..core.retrieve import retrieve
 from ..core.store import paths, read_spans_jsonl
 from ..core.vectorize import vectorize_spans, retrieve_semantic, retrieve_hybrid
@@ -42,6 +42,7 @@ _KIND_DEFAULT_COLOR = (0.5, 0, 0.5)  # purple for unknown kinds
 
 
 class Engine(str, Enum):
+    tree = "tree"
     blocks = "blocks"
     layout = "layout"
 
@@ -49,14 +50,21 @@ class Engine(str, Enum):
 @app.command()
 def ingest(
     pdf: Path,
-    engine: Engine = typer.Option(Engine.layout, "--engine", help="Ingestion engine"),
+    engine: Engine = typer.Option(Engine.tree, "--engine", help="Ingestion engine: 'tree' (default, new), 'layout', or 'blocks'"),
+    parser: str = typer.Option(None, "--parser", help="Tree-mode parser override: 'docling' or 'pymupdf4llm'"),
     extract_words: bool = typer.Option(True, "--extract-words/--no-extract-words", help="Extract word-level bboxes (layout only)"),
     write_images: bool = typer.Option(True, "--write-images/--no-write-images", help="Materialize images (layout only)"),
     dpi: int = typer.Option(200, "--dpi", help="Image DPI (layout only)"),
 ):
-    # Enable info logging so layout engine counts are visible
+    # Enable info logging so engine counts are visible
     logging.basicConfig(level=logging.INFO, format="%(message)s")
-    if engine == Engine.layout:
+    if engine == Engine.tree:
+        meta = ingest_pdf_bytes_tree(
+            pdf.read_bytes(),
+            source_filename=pdf.name,
+            parser_name=parser,
+        )
+    elif engine == Engine.layout:
         meta = ingest_pdf_bytes_layout(
             pdf.read_bytes(),
             extract_words=extract_words,

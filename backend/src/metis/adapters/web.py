@@ -25,7 +25,7 @@ from ..core.generated_types import (
     IngestResponse,
     VectorizeResponse,
 )
-from ..core.ingest import ingest_pdf_bytes, ingest_pdf_bytes_layout
+from ..core.ingest import ingest_pdf_bytes, ingest_pdf_bytes_layout, ingest_pdf_bytes_tree
 from ..core.llm import AnthropicModel, OpenAIModel, OpenRouterModel, StreamEvent
 from ..core.prompts import SYSTEM_PROMPT, build_system_prompt, format_query_with_selections
 from ..core.retrieve import resolve_selections, retrieve
@@ -61,6 +61,7 @@ app.add_middleware(
 # ---------------------------------------------------------------------------
 
 class Engine(str, Enum):
+    tree = "tree"
     blocks = "blocks"
     layout = "layout"
 
@@ -143,14 +144,22 @@ def update_settings_endpoint(req: SettingsUpdate) -> dict:
 @app.post("/ingest", response_model=IngestResponse)
 async def ingest_endpoint(
     file: UploadFile = File(...),
-    engine: Engine = Query(Engine.layout),
+    engine: Engine = Query(Engine.tree),
+    parser: Optional[str] = Query(None),
     extract_words: bool = Query(True),
     write_images: bool = Query(True),
     dpi: int = Query(200),
 ):
     pdf_bytes = await file.read()
     source_filename = file.filename or None
-    if engine == Engine.layout:
+    if engine == Engine.tree:
+        meta = await asyncio.to_thread(
+            ingest_pdf_bytes_tree,
+            pdf_bytes,
+            source_filename=source_filename,
+            parser_name=parser,
+        )
+    elif engine == Engine.layout:
         meta = await asyncio.to_thread(
             ingest_pdf_bytes_layout,
             pdf_bytes,
