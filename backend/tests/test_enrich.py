@@ -194,3 +194,21 @@ class TestIntegrationEnrichment:
         # Verify asset image was saved
         asset_full = tmp_path / s.asset_path
         assert asset_full.exists()
+
+
+def test_enrich_visual_paragraphs_preserves_non_visual(simple_pdf_bytes):
+    from metis.core.enrich import enrich_visual_paragraphs
+    from metis.core.schema_tree import ParagraphNode, make_para_id
+
+    doc_id = "sha256:test"
+    p = ParagraphNode(
+        doc_id=doc_id, sec_id="1", para_idx=0,
+        para_id=make_para_id(doc_id, "1", 0),
+        kind="text", text="regular text paragraph",
+        label=None, bbox_norm=(0.1, 0.1, 0.9, 0.2),
+        page=0, reading_order=0, n_tokens=3,
+    )
+    out = enrich_visual_paragraphs([p], simple_pdf_bytes, doc_id)
+    assert len(out) == 1
+    assert out[0].text == "regular text paragraph"
+    assert out[0].content_source is None

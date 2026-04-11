@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 import pymupdf
 
 from .schema import Span
+from .schema_tree import ParagraphNode
 from .store import paths
 
 if TYPE_CHECKING:
@@ -178,3 +179,58 @@ def enrich_visual_spans(
 
     doc.close()
     return enriched
+
+
+def enrich_visual_paragraphs(
+    paragraphs: list[ParagraphNode],
+    pdf_bytes: bytes,
+    doc_id: str,
+) -> list[ParagraphNode]:
+    """Render visual paragraphs (formula, table) and replace text with structured output.
+
+    Mirrors enrich_visual_spans but operates on the new DocTree schema.
+    Returns a new list; paragraphs that are not enriched are unchanged.
+    On any pix2text failure for a single paragraph, keeps the original text
+    and logs a warning — never crashes the ingest.
+    """
+    p2t = _get_p2t()
+    if p2t is None:
+        return list(paragraphs)
+
+    doc = pymupdf.open(stream=pdf_bytes, filetype="pdf")
+    try:
+        out: list[ParagraphNode] = []
+        for p in paragraphs:
+            if p.kind not in ENRICHABLE_KINDS:
+                out.append(p)
+                continue
+            try:
+                page = doc[p.page]
+                w, h = page.rect.width, page.rect.height
+                x0, y0, x1, y1 = p.bbox_norm
+                bbox_pdf = (x0 * w, y0 * h, x1 * w, y1 * h)
+                image = _render_bbox(doc, page=p.page, bbox_pdf=bbox_pdf)
+                asset_span_id = p.para_id.replace("::", "_").replace(":", "_")
+                rel_asset = _save_asset(image, doc_id, asset_span_id)
+                if p.kind == "formula":
+                    new_text = _enrich_formula(p2t, image)
+                    source = "pix2text_mfr"
+                elif p.kind == "table":
+                    new_text = _enrich_table(p2t, image)
+                    source = "pix2text_table"
+                else:
+                    out.append(p)
+                    continue
+                out.append(dataclasses.replace(
+                    p,
+                    text=new_text,
+                    asset_path=rel_asset,
+                    content_source=source,
+                    original_text=p.text,
+                ))
+            except Exception as exc:
+                log.warning("enrichment failed for %s: %s", p.para_id, exc)
+                out.append(p)
+        return out
+    finally:
+        doc.close()
