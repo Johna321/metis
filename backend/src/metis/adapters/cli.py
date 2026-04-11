@@ -1,6 +1,7 @@
 import json
 import logging
 from enum import Enum
+from typing import Dict
 
 import typer
 import pymupdf
@@ -476,6 +477,64 @@ def chat(
 
     except KeyboardInterrupt:
         console.print("\n[dim]Goodbye.[/dim]")
+
+
+@app.command("eval")
+def eval_cmd(
+    eval_set: str = typer.Option(
+        "backend/tests/eval/retrieval_eval.jsonl",
+        "--eval-set",
+        help="Path to the JSONL eval set",
+    ),
+    papers_dir: str = typer.Option(
+        "backend/tests/eval/papers",
+        "--papers-dir",
+        help="Directory containing eval PDFs referenced in the eval set",
+    ),
+    output_dir: str = typer.Option("eval_results", "--output", help="Output directory"),
+    system: str = typer.Option("new", "--system", help="System name tag (for the output file)"),
+):
+    """Run the retrieval eval harness against the current code."""
+    from pathlib import Path
+    import orjson
+    from metis.core.eval import run_eval
+    from metis.core.ingest import ingest_pdf_bytes_tree
+    from metis.core.embed_v2 import vectorize_tree
+    from metis.core.retrieve_v2 import retrieve_paragraphs
+
+    papers_root = Path(papers_dir)
+    paper_to_doc_id: Dict[str, str] = {}
+    with Path(eval_set).open("rb") as f:
+        for line in f:
+            if not line.strip():
+                continue
+            row = orjson.loads(line)
+            name = row["paper"]
+            if name in paper_to_doc_id:
+                continue
+            pdf = papers_root / name
+            if not pdf.exists():
+                typer.echo(f"Missing paper: {pdf}", err=True)
+                continue
+            meta = ingest_pdf_bytes_tree(pdf.read_bytes())
+            vectorize_tree(meta["doc_id"])
+            paper_to_doc_id[name] = meta["doc_id"]
+
+    def _runner(doc_id_or_paper: str, query: str):
+        doc_id = paper_to_doc_id.get(doc_id_or_paper, doc_id_or_paper)
+        hits = retrieve_paragraphs(doc_id, query, top_k=10)
+        ranked = [h["para_id"] for h in hits]
+        answer = hits[0]["preview"] if hits else ""
+        return answer, ranked
+
+    summary = run_eval(
+        eval_set_path=eval_set,
+        output_dir=output_dir,
+        system_name=system,
+        agent_runner=_runner,
+    )
+    typer.echo(f"Eval complete: {summary}")
+
 
 bench_app = typer.Typer(no_args_is_help=True, help="Run benchmarks")
 app.add_typer(bench_app, name="benchmark")
