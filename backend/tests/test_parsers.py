@@ -120,3 +120,15 @@ def test_docling_parser_abstract_gets_reserved_sec_id(real_paper_bytes):
         assert any(h.sec_id == "refs" for h in refs_headings), (
             f"References has sec_id {[h.sec_id for h in refs_headings]}, expected 'refs'"
         )
+
+
+def test_pymupdf_parser_returns_doctree(pdf_bytes):
+    parser = get_parser("pymupdf4llm")
+    tree = parser.parse(pdf_bytes, doc_id="sha256:synthetic")
+    assert tree.doc_id == "sha256:synthetic"
+    # Synthetic 1-page PDF has 4 sentences — we should get 4 paragraphs
+    assert len(tree.paragraphs) >= 1
+    # Root must exist
+    assert "root" in tree.headings
+    # parse_meta records it
+    assert tree.parse_meta.get("parser") == "pymupdf4llm"
