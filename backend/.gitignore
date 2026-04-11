@@ -1,2 +1,3 @@
 data/beir_datasets/
 data/benchmark_results/
+tests/eval/papers/
