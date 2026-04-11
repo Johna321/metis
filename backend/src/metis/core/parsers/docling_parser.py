@@ -98,7 +98,8 @@ class DoclingParser:
         def _push_heading(level: int, title: str, bbox, page):
             nonlocal level_repairs
             # Level repair via dotted numbering: if title matches "\d+(\.\d+)*\s+..."
-            m = re.match(r"^(\d+(?:\.\d+)*)[\s.:]+(.+)$", title.strip())
+            title_stripped = title.strip()
+            m = re.match(r"^(\d+(?:\.\d+)*)[\s.:]+(.+)$", title_stripped)
             if m:
                 number = m.group(1)
                 repaired_level = number.count(".") + 1
@@ -107,15 +108,9 @@ class DoclingParser:
                 level = repaired_level
                 sec_id = number
             else:
-                # Fall back to autonumbering at the detected level
-                section_counters[level] = section_counters.get(level, 0) + 1
-                # Build synthetic id from stack
-                parent = stack[-1] if stack else "root"
-                sec_id = f"{parent}.{section_counters[level]}" if parent != "root" else str(section_counters[level])
-                # Reset deeper counters
-                for lv in list(section_counters.keys()):
-                    if lv > level:
-                        section_counters[lv] = 0
+                # Defer synthetic sec_id until after popping so we pick up the
+                # correct parent (not the pre-pop stack top).
+                sec_id = None
 
             # Pop stack until parent level is shallower than `level`
             while stack_levels and stack_levels[-1] >= level:
@@ -123,8 +118,28 @@ class DoclingParser:
                 stack_levels.pop()
             parent = stack[-1] if stack else "root"
 
+            # If dotted numbering didn't give us a sec_id, synthesize one from
+            # the (now correct) parent.
+            if sec_id is None:
+                section_counters[level] = section_counters.get(level, 0) + 1
+                n = section_counters[level]
+                sec_id = f"{parent}.{n}" if parent != "root" else str(n)
+                # Reset deeper counters
+                for lv in list(section_counters.keys()):
+                    if lv > level:
+                        section_counters[lv] = 0
+
+            # Collision safety: if sec_id already exists, disambiguate rather
+            # than overwrite. This should be rare after the pop-first fix, but
+            # guards against duplicate dotted numbers in malformed papers.
+            original_sec_id = sec_id
+            collision_counter = 1
+            while sec_id in headings:
+                sec_id = f"{original_sec_id}_{collision_counter}"
+                collision_counter += 1
+
             h = HeadingNode(
-                doc_id=doc_id, sec_id=sec_id, level=level, title=title.strip(),
+                doc_id=doc_id, sec_id=sec_id, level=level, title=title_stripped,
                 title_bbox_norm=bbox, title_page=page,
                 parent_sec_id=parent, children_sec_ids=[], paragraph_ids=[],
                 n_tokens_subtree=0,
@@ -155,6 +170,15 @@ class DoclingParser:
             ro += 1
 
         # Walk the document. Docling's iterate_items yields (item, level) pairs.
+        # Capture the document title separately — Docling's "title" label is
+        # supposed to carry it, but in practice (v2.x with RT-DETR layout) the
+        # paper title is often emitted as a "section_header" that appears as
+        # the very first item and lacks a dotted-number prefix. We detect
+        # either form and use it to populate DocTree.title rather than pushing
+        # a HeadingNode for it.
+        doc_title_from_items: str | None = None
+        first_content_item = True
+        dotted_re = re.compile(r"^\d+(?:\.\d+)*[\s.:]+")
         for item, _level in docling_doc.iterate_items():
             label = getattr(item.label, "value", str(item.label)) if hasattr(item, "label") else "text"
             if label in _DROP_LABELS:
@@ -175,19 +199,48 @@ class DoclingParser:
             else:
                 bbox = (0.0, 0.0, 1.0, 1.0)
 
-            if label in ("section_header", "title"):
+            if label == "title":
+                # Explicit Docling title label — capture the first non-empty
+                # one and do NOT push it as a heading.
+                if doc_title_from_items is None and text:
+                    doc_title_from_items = text
+                continue
+            if label == "section_header":
                 if not text:
                     continue
+                # Heuristic: if the very first content item is a section_header
+                # without a dotted number prefix, it's the paper title (Docling
+                # sometimes labels paper titles this way). Capture it as the
+                # doc title and skip pushing a heading node.
+                if (
+                    first_content_item
+                    and doc_title_from_items is None
+                    and not dotted_re.match(text)
+                ):
+                    doc_title_from_items = text
+                    first_content_item = False
+                    continue
+                first_content_item = False
                 # Docling doesn't always give explicit levels. Default to 1.
                 level = 1
                 _push_heading(level, text, bbox, page)
             elif label in _KIND_MAP:
                 if label != "picture" and not text:
                     continue
+                first_content_item = False
                 _add_paragraph(_KIND_MAP[label], text or "[[PICTURE]]", bbox, page)
             else:
                 if text:
+                    first_content_item = False
                     _add_paragraph("text", text, bbox, page)
+
+        # Determine the final document title using the captured "title" item
+        # if any, otherwise fall back to the stream/document name.
+        final_title = doc_title_from_items or docling_doc.name or "Untitled"
+        title_text = final_title
+        # Update the root node so the re-materialize loop below picks up the
+        # final title.
+        headings["root"] = replace(headings["root"], title=final_title)
 
         # Re-materialize headings with filled children/paragraphs lists.
         for sec_id, h in list(headings.items()):
