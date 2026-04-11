@@ -31,6 +31,8 @@ NEIGHBOR_WINDOW = int(os.getenv("METIS_NEIGHBOR_WINDOW", "1"))
 
 EMBED_MODEL = os.getenv("METIS_EMBED_MODEL", "all-MiniLM-L6-v2")
 
+INGEST_PARSER = os.getenv("METIS_INGEST_PARSER", "docling")
+
 # --- Agent / LLM settings ---
 LLM_PROVIDER = _cfg("METIS_LLM_PROVIDER", "provider", "anthropic")
 LLM_MODEL = _cfg("METIS_LLM_MODEL", "model", "claude-sonnet-4-20250514")
