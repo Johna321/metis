@@ -1,4 +1,5 @@
 from __future__ import annotations
+import re
 from typing import List
 import numpy as np
 import orjson
@@ -43,10 +44,14 @@ from nltk.tokenize import word_tokenize
 _STOP_WORDS = set(stopwords.words("english"))
 _stemmer = PorterStemmer()
 
+_LATEX_CMD_RE = re.compile(r"\\[a-zA-Z]+")
+
 def _tokenize(text: str) -> list[str]:
-    """Tokenize, lowercase, remove stopwords and non-alpha tokens, stem."""
+    """Tokenize, lowercase, remove stopwords and non-alpha, stem. LaTeX commands survive."""
+    latex_tokens = [t.lower() for t in _LATEX_CMD_RE.findall(text)]
     tokens = word_tokenize(text.lower())
-    return [_stemmer.stem(t) for t in tokens if t.isalpha() and t not in _STOP_WORDS]
+    stemmed = [_stemmer.stem(t) for t in tokens if t.isalpha() and t not in _STOP_WORDS]
+    return stemmed + latex_tokens
 
 from rank_bm25 import BM25Okapi
 
