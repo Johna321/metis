@@ -299,7 +299,7 @@ dev = [
 requires-dist = [
     { name = "anthropic", specifier = ">=0.40" },
     { name = "beir", specifier = ">=2.0" },
-    { name = "docling", specifier = ">=2.8" },
+    { name = "docling", specifier = ">=2.8,<3" },
     { name = "fastapi", specifier = ">=0.135.0" },
     { name = "httpx", marker = "extra == 'dev'", specifier = ">=0.27" },
     { name = "nltk", specifier = ">=3.8" },
