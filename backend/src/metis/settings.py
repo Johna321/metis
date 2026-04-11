@@ -31,6 +31,15 @@ NEIGHBOR_WINDOW = int(os.getenv("METIS_NEIGHBOR_WINDOW", "1"))
 
 EMBED_MODEL = os.getenv("METIS_EMBED_MODEL", "all-MiniLM-L6-v2")
 
+# --- Embedding pipeline v2 (Jina v3 + late chunking + contextual prefix) ---
+EMBED_MODEL_V2 = os.getenv("METIS_EMBED_MODEL_V2", "jinaai/jina-embeddings-v3")
+LATE_CHUNKING = os.getenv("METIS_LATE_CHUNKING", "true").lower() == "true"
+LATE_CHUNK_MAX_TOKENS = int(os.getenv("METIS_LATE_CHUNK_MAX_TOKENS", "7000"))
+LATE_CHUNK_OVERLAP = int(os.getenv("METIS_LATE_CHUNK_OVERLAP", "512"))
+LOCATE_SNIPPET_CHARS = int(os.getenv("METIS_LOCATE_SNIPPET_CHARS", "200"))
+READ_SECTION_MAX_TOKENS = int(os.getenv("METIS_READ_SECTION_MAX_TOKENS", "8000"))
+TOC_MAX_DEPTH = int(os.getenv("METIS_TOC_MAX_DEPTH", "3"))
+
 INGEST_PARSER = os.getenv("METIS_INGEST_PARSER", "docling")
 
 # --- Agent / LLM settings ---
