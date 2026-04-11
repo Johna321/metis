@@ -4,8 +4,8 @@ Replaces the flat `Span` list from `schema.py`. Coordinate addressing via
 (doc_id, sec_id, para_idx) with canonical `para_id` keys.
 """
 from __future__ import annotations
-from dataclasses import dataclass, field
-from typing import Optional
+from dataclasses import dataclass
+from typing import Optional, List, Dict
 
 from .schema import BBox  # reuse the existing tuple alias
 
@@ -20,8 +20,8 @@ class HeadingNode:
     title_bbox_norm: Optional[BBox]      # None for synthetic root
     title_page: Optional[int]
     parent_sec_id: Optional[str]         # None only for root
-    children_sec_ids: list[str]          # direct sub-headings (not paragraphs)
-    paragraph_ids: list[str]             # direct paragraphs under this heading, in order
+    children_sec_ids: List[str]          # direct sub-headings (not paragraphs)
+    paragraph_ids: List[str]             # direct paragraphs under this heading, in order
     n_tokens_subtree: int                # rolled-up token count of all descendants
 
 
@@ -50,13 +50,13 @@ class DocTree:
     """The full hierarchical structure of an ingested document."""
     doc_id: str
     title: str
-    authors: list[str]
+    authors: List[str]
     abstract_summary: Optional[str]      # first ~1 sentence of abstract, or None
     root: HeadingNode                    # implicit root (level=0, sec_id="root")
-    headings: dict[str, HeadingNode]     # sec_id -> HeadingNode
-    paragraphs: dict[str, ParagraphNode] # para_id -> ParagraphNode
-    labeled_entities: dict[str, str]     # normalized label -> para_id
-    parse_meta: dict                     # {"parser": ..., "level_repairs": N, ...}
+    headings: Dict[str, HeadingNode]     # sec_id -> HeadingNode
+    paragraphs: Dict[str, ParagraphNode] # para_id -> ParagraphNode
+    labeled_entities: Dict[str, str]     # normalized label -> para_id
+    parse_meta: Dict                     # {"parser": ..., "level_repairs": N, ...}
 
 
 def make_para_id(doc_id: str, sec_id: str, para_idx: int) -> str:

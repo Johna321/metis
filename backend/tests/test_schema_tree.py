@@ -56,6 +56,12 @@ def test_heading_node_children_and_paragraphs():
     assert h.level == 1
 
 
+def test_make_para_id_format():
+    from metis.core.schema_tree import make_para_id
+    assert make_para_id("sha256:abc", "3.2", 4) == "sha256:abc::3.2::p4"
+    assert make_para_id("sha256:xyz", "root", 0) == "sha256:xyz::root::p0"
+
+
 def test_doctree_has_required_fields():
     root = HeadingNode(
         doc_id="sha256:abc", sec_id="root", level=0,
