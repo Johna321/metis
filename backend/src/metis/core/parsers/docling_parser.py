@@ -46,7 +46,6 @@ class DoclingParser:
         # Items have a `label` (e.g., "section_header", "text", "formula", "table",
         # "picture", "caption", "page_header", "page_footer") and `prov` with bbox
         # + page. Section headers form the hierarchy; we build a stack.
-        from docling_core.types.doc import DocItemLabel  # type: ignore  # noqa: F401
         import re
 
         # Known labels to drop entirely.
@@ -113,12 +112,22 @@ class DoclingParser:
             # Normalize bbox to [0, 1] with top-left origin.
             # Docling's BoundingBox has `to_top_left_origin(page_height)` which flips
             # BOTTOMLEFT → TOPLEFT correctly; TOPLEFT inputs pass through unchanged.
-            b = prov.bbox.to_top_left_origin(page_height=page_h)
-            x0 = float(b.l) / page_w
-            y0 = float(b.t) / page_h
-            x1 = float(b.r) / page_w
-            y1 = float(b.b) / page_h
-            return (x0, y0, x1, y1)
+            # Wrapped in try/except to stay robust against future Docling API drift —
+            # a single malformed bbox should not kill the whole parse.
+            try:
+                b = prov.bbox.to_top_left_origin(page_height=page_h)
+                x0 = float(b.l) / page_w
+                y0 = float(b.t) / page_h
+                x1 = float(b.r) / page_w
+                y1 = float(b.b) / page_h
+                return (x0, y0, x1, y1)
+            except Exception as e:  # noqa: BLE001 — broad by design
+                log.warning(
+                    "Failed to normalize Docling bbox (prov=%r, page_w=%s, page_h=%s): %s; "
+                    "falling back to full-page bbox",
+                    getattr(prov, "bbox", prov), page_w, page_h, e,
+                )
+                return (0.0, 0.0, 1.0, 1.0)
 
         def _push_heading(level: int, title: str, bbox, page):
             nonlocal level_repairs
