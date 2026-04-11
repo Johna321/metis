@@ -148,3 +148,13 @@ def make_read_page_tool(doc_id: str) -> tuple[ToolDef, Callable[..., str]]:
         },
     )
     return tool_def, read_page
+
+
+def make_locate_tool(doc_id: str):
+    from .tools_v2 import make_locate_tool as _impl
+    return _impl(doc_id)
+
+
+def make_read_section_tool(doc_id: str):
+    from .tools_v2 import make_read_section_tool as _impl
+    return _impl(doc_id)

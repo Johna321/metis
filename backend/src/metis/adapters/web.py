@@ -27,10 +27,19 @@ from ..core.generated_types import (
 )
 from ..core.ingest import ingest_pdf_bytes, ingest_pdf_bytes_layout
 from ..core.llm import AnthropicModel, OpenAIModel, OpenRouterModel, StreamEvent
-from ..core.prompts import SYSTEM_PROMPT, format_query_with_selections
+from ..core.prompts import SYSTEM_PROMPT, build_system_prompt, format_query_with_selections
 from ..core.retrieve import resolve_selections, retrieve
 from ..core.store import paths, conv_path, read_conversations, create_conversation, update_conversation, delete_conversation, read_messages, append_message
-from ..core.tools import ToolRegistry, make_rag_retrieve_tool, make_read_page_tool, make_web_search_tool
+from ..core.toc import render_toc
+from ..core.tools import (
+    ToolRegistry,
+    make_locate_tool,
+    make_rag_retrieve_tool,
+    make_read_page_tool,
+    make_read_section_tool,
+    make_web_search_tool,
+)
+from ..core.tree_store import read_tree
 from ..core.vectorize import retrieve_semantic, vectorize_spans
 from .. import settings as _settings
 
@@ -254,15 +263,26 @@ def delete_conversation_endpoint(doc_id: str, conv_id: str):
 
 @app.post("/chat", response_class=EventSourceResponse)
 def chat_endpoint(req: ChatRequest) -> Iterable[ServerSentEvent]:
-    # Validate document exists
+    # Validate document exists. Accept either the new tree-based pipeline
+    # (tree.json + embeddings_v2.npy) or the legacy span pipeline
+    # (spans.jsonl + embeddings.npy).
     p = paths(req.doc_id)
-    if not p["spans"].exists():
+    has_tree = p["tree"].exists()
+    has_spans = p["spans"].exists()
+    if not (has_tree or has_spans):
         raise HTTPException(status_code=404, detail=f"Document not found: {req.doc_id}")
-    if not p["embeddings"].exists():
-        raise HTTPException(
-            status_code=400,
-            detail=f"No embeddings found. Run 'metis vectorize {req.doc_id}' first.",
-        )
+    if has_tree:
+        if not p["embeddings_v2"].exists():
+            raise HTTPException(
+                status_code=400,
+                detail=f"No embeddings found. Run the tree embedding pipeline on {req.doc_id} first.",
+            )
+    else:
+        if not p["embeddings"].exists():
+            raise HTTPException(
+                status_code=400,
+                detail=f"No embeddings found. Run 'metis vectorize {req.doc_id}' first.",
+            )
 
     # Resolve provider / model / api_key
     prov = req.provider or _settings.LLM_PROVIDER
@@ -290,10 +310,24 @@ def chat_endpoint(req: ChatRequest) -> Iterable[ServerSentEvent]:
     else:
         raise HTTPException(status_code=400, detail=f"Unknown provider: {prov}. Use 'anthropic', 'openai', or 'openrouter'.")
 
-    # Build tools
+    # Build tools. If a tree sidecar exists we use the hierarchical tools
+    # (locate + read_section) and a TOC-aware system prompt. Otherwise we
+    # fall back to the legacy span-based RAG tool + flat system prompt.
     registry = ToolRegistry()
-    rag_def, rag_fn = make_rag_retrieve_tool(req.doc_id)
-    registry.register(rag_def.name, rag_def.description, rag_def.parameters, rag_fn)
+    tree_path = p["tree"]
+    if tree_path.exists():
+        loc_def, loc_fn = make_locate_tool(req.doc_id)
+        registry.register(loc_def.name, loc_def.description, loc_def.parameters, loc_fn)
+
+        rs_def, rs_fn = make_read_section_tool(req.doc_id)
+        registry.register(rs_def.name, rs_def.description, rs_def.parameters, rs_fn)
+
+        system_prompt = build_system_prompt(render_toc(read_tree(tree_path)))
+    else:
+        rag_def, rag_fn = make_rag_retrieve_tool(req.doc_id)
+        registry.register(rag_def.name, rag_def.description, rag_def.parameters, rag_fn)
+
+        system_prompt = SYSTEM_PROMPT
 
     if p["page_md"].exists():
         rp_def, rp_fn = make_read_page_tool(req.doc_id)
@@ -326,7 +360,7 @@ def chat_endpoint(req: ChatRequest) -> Iterable[ServerSentEvent]:
                 doc_id=req.doc_id,
                 user_query=enriched_query,
                 tools=registry,
-                system_prompt=SYSTEM_PROMPT,
+                system_prompt=system_prompt,
                 conv_id=req.conv_id,
                 max_iterations=_settings.AGENT_MAX_ITER,
                 on_stream=on_stream,

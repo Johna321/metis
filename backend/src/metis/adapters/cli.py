@@ -12,8 +12,17 @@ from ..core.store import paths, read_spans_jsonl
 from ..core.vectorize import vectorize_spans, retrieve_semantic, retrieve_hybrid
 from ..core.agent import run_agent
 from ..core.llm import AnthropicModel, OpenAIModel, OpenRouterModel, StreamEvent
-from ..core.tools import ToolRegistry, make_rag_retrieve_tool, make_web_search_tool, make_read_page_tool
-from ..core.prompts import SYSTEM_PROMPT
+from ..core.toc import render_toc
+from ..core.tools import (
+    ToolRegistry,
+    make_locate_tool,
+    make_rag_retrieve_tool,
+    make_read_page_tool,
+    make_read_section_tool,
+    make_web_search_tool,
+)
+from ..core.tree_store import read_tree
+from ..core.prompts import SYSTEM_PROMPT, build_system_prompt
 from ..settings import (
     LLM_PROVIDER, LLM_MODEL, LLM_API_KEY, TAVILY_API_KEY,
     AGENT_MAX_ITER, AGENT_TEMPERATURE,
@@ -323,17 +332,27 @@ def chat(
         console.print("[red]No API key found. Set METIS_LLM_API_KEY or ANTHROPIC_API_KEY / OPENAI_API_KEY / OPENROUTER_API_KEY.[/red]")
         raise typer.Exit(1)
 
-    # Validate doc exists and has embeddings
+    # Validate doc exists and has embeddings. Accept either the new tree
+    # pipeline (tree.json + embeddings_v2.npy) or the legacy span pipeline
+    # (spans.jsonl + embeddings.npy).
     p = paths(doc_id)
-    if not p["spans"].exists():
+    has_tree = p["tree"].exists()
+    has_spans = p["spans"].exists()
+    if not (has_tree or has_spans):
         console.print(f"[red]Document not found: {doc_id}[/red]")
         console.print("Run: metis ingest <pdf> first.")
         raise typer.Exit(1)
 
-    if not p["embeddings"].exists():
-        console.print(f"[yellow]No embeddings found for this document.[/yellow]")
-        console.print(f"Run: metis vectorize {doc_id}")
-        raise typer.Exit(1)
+    if has_tree:
+        if not p["embeddings_v2"].exists():
+            console.print(f"[yellow]No embeddings found for this document.[/yellow]")
+            console.print("Run the tree embedding pipeline first.")
+            raise typer.Exit(1)
+    else:
+        if not p["embeddings"].exists():
+            console.print(f"[yellow]No embeddings found for this document.[/yellow]")
+            console.print(f"Run: metis vectorize {doc_id}")
+            raise typer.Exit(1)
 
     # Load doc metadata
     if p["doc"].exists():
@@ -357,13 +376,28 @@ def chat(
         console.print(f"[red]Unknown provider: {prov}. Use 'anthropic', 'openai', or 'openrouter'.[/red]")
         raise typer.Exit(1)
 
-    # Build tools
+    # Build tools. If a tree sidecar exists we use the hierarchical tools
+    # (locate + read_section) and a TOC-aware system prompt. Otherwise we
+    # fall back to the legacy span-based RAG tool + flat system prompt.
     registry = ToolRegistry()
-    rag_def, rag_fn = make_rag_retrieve_tool(doc_id)
-    registry.register(rag_def.name, rag_def.description, rag_def.parameters, rag_fn)
+    tree_path = p["tree"]
+    if tree_path.exists():
+        loc_def, loc_fn = make_locate_tool(doc_id)
+        registry.register(loc_def.name, loc_def.description, loc_def.parameters, loc_fn)
 
-    rp_def, rp_fn = make_read_page_tool(doc_id)
-    registry.register(rp_def.name, rp_def.description, rp_def.parameters, rp_fn)
+        rs_def, rs_fn = make_read_section_tool(doc_id)
+        registry.register(rs_def.name, rs_def.description, rs_def.parameters, rs_fn)
+
+        system_prompt = build_system_prompt(render_toc(read_tree(tree_path)))
+    else:
+        rag_def, rag_fn = make_rag_retrieve_tool(doc_id)
+        registry.register(rag_def.name, rag_def.description, rag_def.parameters, rag_fn)
+
+        system_prompt = SYSTEM_PROMPT
+
+    if p["page_md"].exists():
+        rp_def, rp_fn = make_read_page_tool(doc_id)
+        registry.register(rp_def.name, rp_def.description, rp_def.parameters, rp_fn)
 
     tavily_key = TAVILY_API_KEY or os.getenv("TAVILY_API_KEY", "")
     if tavily_key:
@@ -429,9 +463,10 @@ def chat(
 
             result = run_agent(
                 model=llm,
+                doc_id=doc_id,
                 user_query=user_input,
                 tools=registry,
-                system_prompt=SYSTEM_PROMPT,
+                system_prompt=system_prompt,
                 max_iterations=AGENT_MAX_ITER,
                 on_stream=on_stream,
                 on_tool_result=on_tool_result,

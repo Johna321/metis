@@ -34,7 +34,7 @@ def run_agent(
 
     messages: list[Message] = history_messages + [Message(role="user", content=user_query)]
     is_first_exchange = len(history_messages) == 0
-    seen_span_ids: set[str] = set()
+    seen_ids: set[str] = set()
     accumulated_evidence: list[dict] = []
 
     for _ in range(max_iterations):
@@ -78,20 +78,28 @@ def run_agent(
             result_str = tools.call(tc.name, tc.arguments)
             if on_tool_result is not None:
                 on_tool_result(tc.name, tc.arguments, result_str)
-            # Emit citation_data for rag_retrieve results
-            if tc.name == "rag_retrieve" and on_stream is not None:
+            # Emit citation_data for locate (new) or rag_retrieve (legacy) results
+            if tc.name in ("locate", "rag_retrieve") and on_stream is not None:
                 try:
                     items = json.loads(result_str)
                     if isinstance(items, list):
+                        id_key = "para_id" if tc.name == "locate" else "span_id"
                         filtered = [
                             item for item in items
                             if item.get("score", 0.0) >= CITATION_MIN_SCORE
-                            and item.get("span_id") not in seen_span_ids
+                            and item.get(id_key) not in seen_ids
                         ]
-                        seen_span_ids.update(item["span_id"] for item in filtered if "span_id" in item)
+                        seen_ids.update(
+                            item[id_key] for item in filtered if id_key in item
+                        )
                         if filtered:
                             accumulated_evidence.extend(filtered)
-                            on_stream(StreamEvent(kind="citation_data", evidence=filtered, tool_call_id=tc.id, tool_name=tc.name))
+                            on_stream(StreamEvent(
+                                kind="citation_data",
+                                evidence=filtered,
+                                tool_call_id=tc.id,
+                                tool_name=tc.name,
+                            ))
                 except (json.JSONDecodeError, TypeError):
                     pass
             tool_results.append(ToolResult(tool_call_id=tc.id, content=result_str))
