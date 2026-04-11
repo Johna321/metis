@@ -2,10 +2,15 @@ from __future__ import annotations
 import logging
 import pymupdf
 from collections import Counter
+from dataclasses import replace
 from typing import Dict, List, Tuple
 from .schema import Span
 from .store import doc_id_from_bytes, paths, write_json, write_spans_jsonl
-from .enrich import enrich_visual_spans
+from .enrich import enrich_visual_spans, enrich_visual_paragraphs
+from .parsers import get_parser
+from .labels import extract_labels
+from .schema_tree import DocTree
+from .tree_store import write_tree, write_paragraphs
 from ..settings import MIN_CHARS, ENABLE_ENRICHMENT
 
 log = logging.getLogger(__name__)
@@ -342,5 +347,78 @@ def ingest_pdf_bytes_layout(
     if words_by_page:
         words_path = p["page_md"].with_suffix(".words.json")
         write_json(words_path, words_by_page)
+
+    return meta
+
+# ---------------------------------------------------------------------------
+# tree-based ingestion (DocTree schema)
+# ---------------------------------------------------------------------------
+
+def ingest_pdf_bytes_tree(
+    pdf_bytes: bytes,
+    *,
+    source_filename: str | None = None,
+    parser_name: str | None = None,
+) -> dict:
+    """Ingest a PDF into the new DocTree schema.
+
+    Pipeline:
+        1. Parse via configured parser (default: Docling)
+        2. Flatten paragraphs in reading order
+        3. Run pix2text enrichment on formula/table kinds
+        4. Extract labeled entities from text + neighboring captions
+        5. Synthesize .page_md.json from paragraphs grouped by page
+           (so the legacy read_page tool keeps working)
+        6. Persist .tree.json + .paragraphs.jsonl sidecars
+    Returns metadata dict compatible with existing ingest callers.
+    """
+    doc_id = doc_id_from_bytes(pdf_bytes)
+    p = paths(doc_id)
+    p["pdf"].write_bytes(pdf_bytes)
+
+    parser = get_parser(parser_name)
+    tree = parser.parse(pdf_bytes, doc_id)
+
+    # Flatten to reading-order list (needed for enrichment + label extraction
+    # because both operate on neighbors).
+    ordered = sorted(tree.paragraphs.values(), key=lambda x: x.reading_order)
+
+    # Enrichment (mutates text/content_source/original_text)
+    ordered = enrich_visual_paragraphs(ordered, pdf_bytes, doc_id)
+
+    # Labels
+    labeled_ordered, lookup = extract_labels(ordered)
+    para_by_id = {x.para_id: x for x in labeled_ordered}
+
+    # Rebuild tree with updated paragraphs and populated labeled_entities
+    new_tree = replace(
+        tree,
+        paragraphs=para_by_id,
+        labeled_entities=lookup,
+    )
+
+    write_tree(p["tree"], new_tree)
+    write_paragraphs(p["paragraphs"], labeled_ordered)
+
+    # Synthesize .page_md.json so the legacy read_page tool keeps working.
+    # Group paragraphs by page and join their texts in reading order.
+    page_md: dict[str, str] = {}
+    for para in sorted(labeled_ordered, key=lambda x: (x.page, x.reading_order)):
+        key = str(para.page)
+        existing = page_md.get(key, "")
+        page_md[key] = (existing + "\n\n" + para.text).strip() if existing else para.text
+    write_json(p["page_md"], page_md)
+
+    # Also write a minimal .doc.json for API compatibility
+    meta = {
+        "doc_id": doc_id,
+        "n_pages": max((x.page for x in labeled_ordered), default=-1) + 1,
+        "n_paragraphs": len(labeled_ordered),
+        "n_headings": len(new_tree.headings),
+        "ingest": {"engine": "tree", "parser": parser.name},
+    }
+    if source_filename:
+        meta["source_filename"] = source_filename
+    write_json(p["doc"], meta)
 
     return meta
