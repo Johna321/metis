@@ -52,6 +52,31 @@ class DoclingParser:
         # Known labels to drop entirely.
         _DROP_LABELS = {"page_header", "page_footer"}
 
+        # Reserved sec_ids for well-known unnumbered sections.
+        # Matched against the lowercase heading title; first matching pattern wins.
+        # The order matters — more specific patterns first.
+        _RESERVED_SECTIONS = [
+            ("abstract", "abstract"),
+            ("references", "refs"),
+            ("bibliography", "refs"),
+            ("acknowledgments", "ack"),
+            ("acknowledgements", "ack"),
+            ("acknowledgment", "ack"),
+            ("acknowledgement", "ack"),
+            ("appendix", "appendix"),
+        ]
+
+        def _match_reserved(title_lower: str) -> str | None:
+            """Return the reserved sec_id if title starts with a reserved keyword."""
+            for keyword, reserved_id in _RESERVED_SECTIONS:
+                if (
+                    title_lower == keyword
+                    or title_lower.startswith(keyword + " ")
+                    or title_lower.startswith(keyword + ":")
+                ):
+                    return reserved_id
+            return None
+
         # Map Docling label → our ParagraphNode.kind
         _KIND_MAP = {
             "text": "text",
@@ -108,9 +133,12 @@ class DoclingParser:
                 level = repaired_level
                 sec_id = number
             else:
-                # Defer synthetic sec_id until after popping so we pick up the
-                # correct parent (not the pre-pop stack top).
-                sec_id = None
+                # Check for well-known unnumbered sections (Abstract, References,
+                # Acknowledgments, Appendix, etc.) before falling through to the
+                # autonumbering fallback.
+                sec_id = _match_reserved(title_stripped.lower())
+                # If not reserved, defer synthetic sec_id until after popping so
+                # we pick up the correct parent (not the pre-pop stack top).
 
             # Pop stack until parent level is shallower than `level`
             while stack_levels and stack_levels[-1] >= level:
@@ -209,13 +237,15 @@ class DoclingParser:
                 if not text:
                     continue
                 # Heuristic: if the very first content item is a section_header
-                # without a dotted number prefix, it's the paper title (Docling
-                # sometimes labels paper titles this way). Capture it as the
-                # doc title and skip pushing a heading node.
+                # that is neither a dotted-numbered heading nor a reserved-keyword
+                # heading (Abstract/References/etc.), it's the paper title
+                # (Docling sometimes labels paper titles this way). Capture it as
+                # the doc title and skip pushing a heading node.
                 if (
                     first_content_item
                     and doc_title_from_items is None
                     and not dotted_re.match(text)
+                    and _match_reserved(text.strip().lower()) is None
                 ):
                     doc_title_from_items = text
                     first_content_item = False

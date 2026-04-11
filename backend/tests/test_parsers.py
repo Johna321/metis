@@ -82,3 +82,41 @@ def test_docling_parser_title_not_in_heading_stack(real_paper_bytes):
             continue
         assert h.title.strip() != tree.title.strip(), \
             f"Heading {h.sec_id} duplicates the paper title: {h.title!r}"
+
+
+def test_docling_parser_abstract_gets_reserved_sec_id(real_paper_bytes):
+    """Well-known unnumbered sections should use reserved sec_ids, not autonumber."""
+    parser = get_parser("docling")
+    tree = parser.parse(real_paper_bytes, doc_id="sha256:late-chunking")
+
+    # Find a heading whose title starts with "Abstract" — it must have sec_id "abstract"
+    abstract_headings = [
+        h for h in tree.headings.values()
+        if h.title.lower().startswith("abstract")
+    ]
+    if abstract_headings:
+        assert any(h.sec_id == "abstract" for h in abstract_headings), (
+            f"Abstract heading has sec_id {[h.sec_id for h in abstract_headings]}, "
+            f"expected 'abstract'"
+        )
+
+    # Section "1" should be Introduction (real numbered section), not Abstract
+    sec1 = tree.headings.get("1")
+    if sec1 is not None:
+        assert "abstract" not in sec1.title.lower(), (
+            f"sec_id '1' should be the real Introduction, got title: {sec1.title!r}"
+        )
+        # Should start with "1 " (dotted number prefix)
+        assert sec1.title.strip().startswith("1"), (
+            f"sec_id '1' title should start with '1', got: {sec1.title!r}"
+        )
+
+    # References should use "refs" if present
+    refs_headings = [
+        h for h in tree.headings.values()
+        if h.title.lower().startswith(("references", "bibliography"))
+    ]
+    if refs_headings:
+        assert any(h.sec_id == "refs" for h in refs_headings), (
+            f"References has sec_id {[h.sec_id for h in refs_headings]}, expected 'refs'"
+        )
