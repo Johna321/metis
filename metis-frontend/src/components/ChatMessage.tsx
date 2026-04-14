@@ -2,9 +2,10 @@ import { useState } from "react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
-import rehypeMathjax from "rehype-mathjax";
+import rehypeKatex from "rehype-katex";
 import { DotPulse } from "ldrs/react";
 import "ldrs/react/DotPulse.css";
+import "katex/dist/katex.min.css";
 import { BiSolidFilePdf } from "react-icons/bi";
 import { IoChevronDown, IoChevronUp } from "react-icons/io5";
 import type { EvidenceItem } from "../backend/http";
@@ -287,7 +288,7 @@ export function ChatMessageBubble({ msg, isPending, isStreaming, onCitationClick
       ) : (
         <Markdown
           remarkPlugins={[remarkGfm, [remarkMath, { singleDollarTextMath: false }]]}
-          rehypePlugins={[rehypeMathjax]}
+          rehypePlugins={[rehypeKatex]}
           components={{
             a: ({ href, children, ...props }) => {
               if (href) {
