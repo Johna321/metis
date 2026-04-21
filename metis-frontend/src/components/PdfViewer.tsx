@@ -10,6 +10,8 @@ import { useBBoxDrag } from "../hooks/useBBoxDrag";
 import { usePdfSearch } from "../hooks/usePdfSearch";
 import { PageSlot } from "./PageSlot";
 import { BBoxOverlay } from "./BBoxOverlay";
+import { NoteMarkers, type NoteMarkersProps } from "./NoteMarkers";
+import type { Note } from "./NotesPanel";
 
 const PAGE_WIDTH = 900;
 
@@ -18,6 +20,8 @@ export type BBoxSelection = {
   bbox_norm: [number, number, number, number]; // [x0, y0, x1, y1] in [0, 1]
   bbox_pdf: [number, number, number, number]; // [x0, y0, x1, y1] in PDF points (PyMuPDF)
 };
+
+export type PageDims = { w: number; h: number };
 
 interface PdfViewerProps {
   pdfUrl: string;
@@ -32,6 +36,9 @@ interface PdfViewerProps {
   onBBoxAdd: (sel: BBoxSelection) => void;
   onBackgroundClick?: () => void;
   onContextTextChange?: (text: string | null) => void;
+  notes?: Note[];
+  expandedNoteId?: string | null;
+  onSelectNote?: (noteId: string) => void;
 }
 
 export function PdfViewer({
@@ -43,12 +50,16 @@ export function PdfViewer({
   onBBoxAdd,
   onBackgroundClick,
   onContextTextChange,
+  notes = [],
+  expandedNoteId = null,
+  onSelectNote,
 }: PdfViewerProps) {
   const [scrollContainer, setScrollContainer] = useState<HTMLDivElement | null>(
     null
   );
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; text: string } | null>(null);
   const pageRefs = useRef<Map<number, HTMLDivElement>>(new Map());
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   const { doc, numPages, pageDims, loading, error } = usePdfDocument(pdfUrl);
   const { visiblePages, observeElement } = useVirtualPages(scrollContainer);
@@ -185,7 +196,10 @@ export function PdfViewer({
     <div className="pdf-viewer-wrapper">
       <div
         className="pdf-scroll-container"
-        ref={setScrollContainer}
+        ref={(el) => {
+          setScrollContainer(el);
+          scrollContainerRef.current = el;
+        }}
         onContextMenu={handleContextMenu}
       >
         {contextMenu && (
@@ -278,6 +292,16 @@ export function PdfViewer({
             </button>
           </div>
         </div>
+      )}
+      {notes.length > 0 && (
+        <NoteMarkers
+          notes={notes}
+          expandedNoteId={expandedNoteId}
+          onSelectNote={onSelectNote || (() => {})}
+          scrollContainerRef={scrollContainerRef}
+          pagePositions={pagePositions}
+          pageDims={pageDims}
+        />
       )}
     </div>
   );

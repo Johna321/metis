@@ -271,6 +271,48 @@
   z-index: 6;
 }
 
+/* Note Markers */
+.note-markers-container {
+  position: absolute;
+  top: 0;
+  width: 24px;
+  height: 100%;
+  pointer-events: none;
+  z-index: 15;
+  background: transparent;
+}
+
+.note-marker {
+  position: absolute;
+  left: 10px;
+  width: 20px;
+  height: 6px;
+  background: #3b82f6;
+  border: none;
+  border-radius: 2px;
+  cursor: pointer;
+  pointer-events: auto;
+  transition: all 0s ease;
+  opacity: 0.5;
+  transform: translateX(0);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.note-marker:hover {
+  opacity: 1;
+  width: 24px;
+  right: 0;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+}
+
+.note-marker.expanded {
+  opacity: 1;
+  background: #2563eb;
+  width: 24px;
+  right: 0;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.3);
+}
+
 /* Notes Panel */
 .notes-panel {
   width: 400px;
@@ -411,6 +453,20 @@
 
 /* Notes panel dark mode */
 @media (prefers-color-scheme: dark) {
+  .note-marker {
+    background: #60a5fa;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  }
+
+  .note-marker:hover {
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+  }
+
+  .note-marker.expanded {
+    background: #2563eb;
+    box-shadow: 0 2px 8px rgba(37, 99, 235, 0.5);
+  }
+
   .notes-panel {
     background: #1f1f1f;
     border-left-color: rgba(255, 255, 255, 0.1);

@@ -77,7 +77,7 @@ function App() {
     }
   }
 
-  function handleCreateNote(query: string, response: string, bbox: BBoxSelection) {
+  function handleCreateNote(query: string, response: string, bbox: BBoxSelection, evidence?: any) {
     if (!docId) return;
     const note: Note = {
       id: `note-${Date.now()}`,
@@ -86,9 +86,9 @@ function App() {
       query,
       response,
       createdAt: Date.now(),
+      evidence,
     };
     setNotes(prev => [...prev, note]);
-    setExpandedNoteId(note.id);
   }
 
   function handleHighlightNote() {
@@ -116,6 +116,15 @@ function App() {
       />
 
       <div className="main-split">
+        {expandedNoteId && (
+          <NotesPanel
+            note={notes.find(n => n.id === expandedNoteId) || null}
+            onClose={() => setExpandedNoteId(null)}
+            onHighlightBBox={handleHighlightNote}
+            onCitationClick={(page, bbox) => setHighlightTarget({ page, bbox_norm: bbox })}
+          />
+        )}
+
         <main className="viewer">
           {pdfUrl ? (
             <PdfViewer
@@ -129,12 +138,16 @@ function App() {
               onBBoxAdd={(sel) => setBboxSelections(prev => [...prev, sel])}
               onBackgroundClick={() => setHighlightTarget(null)}
               onContextTextChange={setContextText}
+              notes={notes}
+              expandedNoteId={expandedNoteId}
+              onSelectNote={setExpandedNoteId}
             />
           ) : (
             <div className="status">Open a PDF to begin</div>
           )}
         </main>
 
+        
         <ChatPanel
           docId={docId}
           bboxSelections={bboxSelections}
@@ -145,14 +158,6 @@ function App() {
           onContextTextChange={setContextText}
           onCreateNote={handleCreateNote}
         />
-
-        {expandedNoteId && (
-          <NotesPanel
-            note={notes.find(n => n.id === expandedNoteId) || null}
-            onClose={() => setExpandedNoteId(null)}
-            onHighlightBBox={handleHighlightNote}
-          />
-        )}
       </div>
 
       <Settings isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
