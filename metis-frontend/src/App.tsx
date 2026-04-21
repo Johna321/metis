@@ -9,6 +9,7 @@ import { Toolbar } from "./components/Toolbar";
 import { PdfViewer, type BBoxSelection } from "./components/PdfViewer";
 import { ChatPanel } from "./components/ChatPanel";
 import { Settings } from "./components/Settings";
+import { NotesPanel, type Note } from "./components/NotesPanel";
 
 function App() {
   const [docId, setDocId] = useState<string | null>(null);
@@ -21,6 +22,8 @@ function App() {
   const [highlightTarget, setHighlightTarget] = useState<{ page: number; bbox_norm: [number, number, number, number] } | null>(null);  // scroll to evidence item
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [contextText, setContextText] = useState<string | null>(null);
+  const [notes, setNotes] = useState<Note[]>([]);
+  const [expandedNoteId, setExpandedNoteId] = useState<string | null>(null);
 
   async function openPdf() {
     const path = await open({
@@ -74,6 +77,30 @@ function App() {
     }
   }
 
+  function handleCreateNote(query: string, response: string, bbox: BBoxSelection) {
+    if (!docId) return;
+    const note: Note = {
+      id: `note-${Date.now()}`,
+      docId,
+      bbox,
+      query,
+      response,
+      createdAt: Date.now(),
+    };
+    setNotes(prev => [...prev, note]);
+    setExpandedNoteId(note.id);
+  }
+
+  function handleHighlightNote() {
+    const note = notes.find(n => n.id === expandedNoteId);
+    if (note) {
+      setHighlightTarget({
+        page: note.bbox.page,
+        bbox_norm: note.bbox.bbox_norm,
+      });
+    }
+  }
+
   return (
     <div className="app-shell">
       <Toolbar
@@ -116,7 +143,16 @@ function App() {
           onCitationClick={(page, bbox) => setHighlightTarget({ page, bbox_norm: bbox })}
           contextText={contextText}
           onContextTextChange={setContextText}
+          onCreateNote={handleCreateNote}
         />
+
+        {expandedNoteId && (
+          <NotesPanel
+            note={notes.find(n => n.id === expandedNoteId) || null}
+            onClose={() => setExpandedNoteId(null)}
+            onHighlightBBox={handleHighlightNote}
+          />
+        )}
       </div>
 
       <Settings isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />

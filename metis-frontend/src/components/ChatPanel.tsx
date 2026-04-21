@@ -41,6 +41,7 @@ interface ChatPanelProps {
   onCitationClick: (page: number, bbox_norm: [number, number, number, number]) => void;
   contextText?: string | null;
   onContextTextChange?: (text: string | null) => void;
+  onCreateNote?: (query: string, response: string, bbox: BBoxSelection) => void;
 }
 
 export function ChatPanel({
@@ -51,6 +52,7 @@ export function ChatPanel({
   onCitationClick,
   contextText,
   onContextTextChange,
+  onCreateNote,
 }: ChatPanelProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [chatInput, setChatInput] = useState("");
@@ -64,6 +66,7 @@ export function ChatPanel({
   const [conversations, setConversations] = useState<ConversationMeta[]>([]);
   const [activeConvId, setActiveConvId] = useState<string | null>(null);
   const [isConvListCollapsed, setIsConvListCollapsed] = useState(false);
+  const currentQueryRef = useRef<{ query: string; bbox: BBoxSelection | null }>({ query: "", bbox: null });
 
   function handleMessagesScroll() {
     const el = chatMessagesRef.current;
@@ -152,6 +155,12 @@ export function ChatPanel({
     setIsStreaming(true);
     isStuckToBottom.current = true;
 
+    // store query and bbox for note creation
+    currentQueryRef.current = {
+      query: text,
+      bbox: bboxSelections.length > 0 ? bboxSelections[0] : null,
+    };
+
     // prepend context if available
     let messageWithContext = text;
     if (contextText) {
@@ -200,6 +209,21 @@ export function ChatPanel({
         unlistenRef.current?.();
         unlistenRef.current = null;
         refreshConversations();
+
+        // create note if bbox was present
+        if (onCreateNote && currentQueryRef.current.bbox) {
+          setMessages(prev => {
+            const lastMsg = prev[prev.length - 1];
+            if (lastMsg && lastMsg.role === "assistant") {
+              onCreateNote(
+                currentQueryRef.current.query,
+                lastMsg.content,
+                currentQueryRef.current.bbox!
+              );
+            }
+            return prev;
+          });
+        }
       },
       onError: (msg) => {
         setActiveToolCall(null);
