@@ -41,6 +41,7 @@ interface ChatPanelProps {
   onCitationClick: (page: number, bbox_norm: [number, number, number, number]) => void;
   contextText?: string | null;
   onContextTextChange?: (text: string | null) => void;
+  onCreateNote?: (query: string, response: string, bbox: BBoxSelection, evidence?: ChatMessage["evidence"]) => void;
 }
 
 export function ChatPanel({
@@ -51,6 +52,7 @@ export function ChatPanel({
   onCitationClick,
   contextText,
   onContextTextChange,
+  onCreateNote,
 }: ChatPanelProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [chatInput, setChatInput] = useState("");
@@ -64,6 +66,8 @@ export function ChatPanel({
   const [conversations, setConversations] = useState<ConversationMeta[]>([]);
   const [activeConvId, setActiveConvId] = useState<string | null>(null);
   const [isConvListCollapsed, setIsConvListCollapsed] = useState(false);
+  const currentQueryRef = useRef<{ query: string; bbox: BBoxSelection | null }>({ query: "", bbox: null });
+  const lastNoteCreatedRef = useRef<number>(0);
 
   function handleMessagesScroll() {
     const el = chatMessagesRef.current;
@@ -79,6 +83,26 @@ export function ChatPanel({
   }, [messages, activeToolCall]);
 
   useEffect(() => () => { unlistenRef.current?.(); }, []);
+
+  // Create note when agent finishes and bbox was present
+  useEffect(() => {
+    if (isStreaming || !onCreateNote || !currentQueryRef.current.bbox) return;
+
+    const lastMsg = messages[messages.length - 1];
+    if (!lastMsg || lastMsg.role !== "assistant" || !lastMsg.content) return;
+
+    // Only create once per response (use message count as a unique ID)
+    const msgHash = messages.length;
+    if (lastNoteCreatedRef.current === msgHash) return;
+
+    lastNoteCreatedRef.current = msgHash;
+    onCreateNote(
+      currentQueryRef.current.query,
+      lastMsg.content,
+      currentQueryRef.current.bbox!,
+      lastMsg.evidence
+    );
+  }, [isStreaming, messages, onCreateNote]);
 
   // Fetch conversation list when docId changes
   useEffect(() => {
@@ -151,6 +175,12 @@ export function ChatPanel({
     setChatInput("");
     setIsStreaming(true);
     isStuckToBottom.current = true;
+
+    // store query and bbox for note creation
+    currentQueryRef.current = {
+      query: text,
+      bbox: bboxSelections.length > 0 ? bboxSelections[0] : null,
+    };
 
     // prepend context if available
     let messageWithContext = text;
